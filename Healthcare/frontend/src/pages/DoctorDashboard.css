@@ -1,0 +1,204 @@
+.doctor-dashboard-container {
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 32px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+/* KPI Cards Layout */
+.kpi-card {
+  grid-column: span 6;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 20px 24px;
+}
+
+.kpi-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.kpi-icon.blue {
+  background-color: rgba(99, 102, 241, 0.1);
+  color: #8b5cf6;
+}
+
+.kpi-icon.red {
+  background-color: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
+}
+
+.kpi-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.kpi-val {
+  font-size: 26px;
+  font-weight: 800;
+  color: white;
+  line-height: 1.1;
+  font-family: var(--font-title);
+}
+
+.kpi-label {
+  font-size: 12px;
+  color: hsl(var(--text-muted));
+  margin-top: 4px;
+}
+
+/* Chart Container Cards */
+.chart-container-card {
+  min-height: 300px;
+}
+
+.recharts-wrapper {
+  margin-top: auto;
+  margin-bottom: auto;
+}
+
+/* Critical list */
+.critical-list-card {
+  max-height: 400px;
+}
+
+.no-alerts-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 32px 16px;
+  margin: auto;
+  gap: 12px;
+  color: hsl(var(--text-muted));
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.alert-success-icon {
+  color: #10b981;
+}
+
+.critical-alert-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: rgba(239, 68, 68, 0.04);
+  border: 1px solid rgba(239, 68, 68, 0.1);
+  border-radius: var(--radius-md);
+  padding: 12px 16px;
+  transition: transform var(--transition-fast), border-color var(--transition-fast);
+}
+
+.critical-alert-item:hover {
+  transform: translateX(2px);
+  border-color: rgba(239, 68, 68, 0.25);
+}
+
+.alert-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.alert-name {
+  font-weight: 600;
+  font-size: 14px;
+  color: white;
+}
+
+.alert-details {
+  font-size: 11px;
+  color: hsl(var(--text-muted));
+}
+
+.alert-action-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.alert-btn {
+  background: transparent;
+  border: none;
+  color: hsl(var(--text-muted));
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  border-radius: var(--radius-sm);
+  transition: color var(--transition-fast), background-color var(--transition-fast);
+}
+
+.alert-btn:hover {
+  color: white;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+/* Patients Roster List */
+.assigned-list-card {
+  max-height: 400px;
+}
+
+.roster-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  border-radius: var(--radius-md);
+  padding: 14px 16px;
+  cursor: pointer;
+  transition: transform var(--transition-fast), border-color var(--transition-fast), background-color var(--transition-fast);
+}
+
+.roster-item:hover {
+  transform: translateX(2px);
+  border-color: rgba(99, 102, 241, 0.2);
+  background-color: rgba(255, 255, 255, 0.04);
+}
+
+.roster-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.roster-name {
+  font-weight: 600;
+  font-size: 14px;
+  color: white;
+}
+
+.roster-sub {
+  font-size: 11px;
+  color: hsl(var(--text-muted));
+}
+
+.roster-score-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.roster-arrow {
+  color: hsl(var(--text-muted));
+  opacity: 0;
+  transition: opacity var(--transition-fast), transform var(--transition-fast);
+}
+
+.roster-item:hover .roster-arrow {
+  opacity: 1;
+  transform: translateX(2px);
+}

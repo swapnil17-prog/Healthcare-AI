@@ -1,0 +1,44 @@
+# Python virtual environment
+backend/.venv/
+.venv/
+
+# Node dependencies
+frontend/node_modules/
+node_modules/
+
+# Python caching
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+backend/.pytest_cache/
+
+# Local SQLite databases
+*.db
+backend/healthcare.db
+
+# Diagnostic Uploads / Generated Reports
+backend/uploads/reports/
+backend/uploads/reports/*
+
+# Environment files (secrets)
+.env
+.env.local
+.env.development
+.env.test
+.env.production
+backend/.env
+
+# IDE / Editor configuration
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.swp
+
+# OS generated files
+.DS_Store
+Thumbs.db

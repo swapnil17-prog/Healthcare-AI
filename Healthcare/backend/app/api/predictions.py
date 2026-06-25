@@ -1,0 +1,173 @@
+from fastapi import APIRouter, Depends, HTTPException, status, Request
+from sqlalchemy.orm import Session
+from typing import List
+from app.database.database import get_db
+from app.models.models import Prediction, Patient, Appointment, User
+from app.schemas.predictions import PredictionRequest, PredictionOut
+from app.ml.ml_service import ml_service
+from app.services.recommendation import get_doctor_recommendations
+from app.auth.dependencies import get_current_user
+from app.core.rate_limiter import limiter
+
+router = APIRouter(tags=["predictions"])
+
+# Helper function to check if a doctor is assigned to a patient
+def is_doctor_assigned(db: Session, doctor_id: int, patient_id: int) -> bool:
+    appointment = db.query(Appointment).filter(
+        Appointment.patient_id == patient_id,
+        Appointment.doctor_id == doctor_id
+    ).first()
+    return appointment is not None
+
+@router.post("/predictions/{patient_id}", response_model=PredictionOut, status_code=status.HTTP_201_CREATED)
+@limiter.limit("5/minute")
+def run_prediction(
+    patient_id: int,
+    req: PredictionRequest,
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    # Ensure patient exists
+    patient = db.query(Patient).filter(Patient.id == patient_id).first()
+    if not patient:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Patient not found"
+        )
+        
+    # Access Control Check
+    if current_user.role == "admin":
+        pass
+    elif current_user.role == "doctor":
+        pass
+    elif current_user.role == "patient":
+        if patient.user_id != current_user.id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied. You can only run predictions for yourself."
+            )
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Unauthorized access"
+        )
+        
+    # Run ML Inference
+    try:
+        inference_result = ml_service.predict(
+            pregnancies=req.pregnancies,
+            glucose=req.glucose,
+            blood_pressure=req.blood_pressure,
+            insulin=req.insulin,
+            bmi=req.bmi,
+            age=req.age
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Prediction service failure: {str(e)}"
+        )
+        
+    risk_score = inference_result["risk_score"]
+    prediction_label = inference_result["prediction"]
+    
+    # Run Stage 5 Doctor Recommendation Rule Engine
+    recommendations = get_doctor_recommendations(
+        risk_score=risk_score,
+        glucose=req.glucose,
+        blood_pressure=req.blood_pressure,
+        bmi=req.bmi
+    )
+    
+    # Map input features to dictionary
+    input_features_dict = {
+        "pregnancies": req.pregnancies,
+        "glucose": req.glucose,
+        "blood_pressure": req.blood_pressure,
+        "insulin": req.insulin,
+        "bmi": req.bmi,
+        "age": req.age
+    }
+    
+    # Persist prediction in DB (model-agnostic using JSON features column)
+    db_prediction = Prediction(
+        patient_id=patient_id,
+        model_name="Pima Indians Diabetes",
+        input_features=input_features_dict,
+        risk_score=risk_score,
+        prediction=prediction_label
+    )
+    
+    db.add(db_prediction)
+    db.commit()
+    db.refresh(db_prediction)
+    
+    # Build schema output including recommendations list
+    return PredictionOut(
+        id=db_prediction.id,
+        patient_id=db_prediction.patient_id,
+        model_name=db_prediction.model_name,
+        input_features=db_prediction.input_features,
+        risk_score=db_prediction.risk_score,
+        prediction=db_prediction.prediction,
+        created_at=db_prediction.created_at,
+        recommendations=recommendations
+    )
+
+@router.get("/patients/{patient_id}/predictions", response_model=List[PredictionOut])
+def read_patient_predictions(
+    patient_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    # Ensure patient exists
+    patient = db.query(Patient).filter(Patient.id == patient_id).first()
+    if not patient:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Patient not found"
+        )
+        
+    # Access Control Check
+    if current_user.role == "admin":
+        pass
+    elif current_user.role == "doctor":
+        pass
+    elif current_user.role == "patient":
+        if patient.user_id != current_user.id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied. You can only view your own predictions."
+            )
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Unauthorized access"
+        )
+        
+    predictions = db.query(Prediction).filter(Prediction.patient_id == patient_id).all()
+    
+    # Build output objects, dynamically running the recommendation rule engine
+    results = []
+    for pred in predictions:
+        features = pred.input_features
+        # Run recommendation rule engine based on saved parameters
+        recommendations = get_doctor_recommendations(
+            risk_score=pred.risk_score,
+            glucose=features.get("glucose", 0.0),
+            blood_pressure=features.get("blood_pressure", 0.0),
+            bmi=features.get("bmi", 0.0)
+        )
+        results.append(PredictionOut(
+            id=pred.id,
+            patient_id=pred.patient_id,
+            model_name=pred.model_name,
+            input_features=pred.input_features,
+            risk_score=pred.risk_score,
+            prediction=pred.prediction,
+            created_at=pred.created_at,
+            recommendations=recommendations
+        ))
+        
+    return results
