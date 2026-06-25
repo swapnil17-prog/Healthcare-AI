@@ -13,7 +13,8 @@ def train_and_save_model():
     
     # 1. Download dataset if not present
     url = "https://raw.githubusercontent.com/jbrownlee/Datasets/master/pima-indians-diabetes.csv"
-    csv_path = "pima-indians-diabetes.csv"
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    csv_path = os.path.join(current_dir, "pima-indians-diabetes.csv")
     
     if not os.path.exists(csv_path):
         print(f"Downloading Pima Indians Diabetes dataset from {url}...")
@@ -85,8 +86,9 @@ def train_and_save_model():
     print(f"Test Accuracy: {test_acc * 100:.2f}%")
     
     # 5. Save pickle
-    os.makedirs("models", exist_ok=True)
-    model_file_path = "models/diabetes_model.pkl"
+    models_dir = os.path.join(current_dir, "models")
+    os.makedirs(models_dir, exist_ok=True)
+    model_file_path = os.path.join(models_dir, "diabetes_model.pkl")
     with open(model_file_path, "wb") as f:
         pickle.dump(model, f)
         
