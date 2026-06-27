@@ -71,6 +71,7 @@ def run_prediction(
         
     risk_score = inference_result["risk_score"]
     prediction_label = inference_result["prediction"]
+    feature_contributions = inference_result.get("feature_contributions", {})
     
     # Run Stage 5 Doctor Recommendation Rule Engine
     recommendations = get_doctor_recommendations(
@@ -95,6 +96,7 @@ def run_prediction(
         patient_id=patient_id,
         model_name="Pima Indians Diabetes",
         input_features=input_features_dict,
+        feature_contributions=feature_contributions,
         risk_score=risk_score,
         prediction=prediction_label
     )
@@ -109,6 +111,7 @@ def run_prediction(
         patient_id=db_prediction.patient_id,
         model_name=db_prediction.model_name,
         input_features=db_prediction.input_features,
+        feature_contributions=db_prediction.feature_contributions,
         risk_score=db_prediction.risk_score,
         prediction=db_prediction.prediction,
         created_at=db_prediction.created_at,
@@ -159,11 +162,29 @@ def read_patient_predictions(
             blood_pressure=features.get("blood_pressure", 0.0),
             bmi=features.get("bmi", 0.0)
         )
+        
+        # Fallback calculation if not stored (e.g. for older prediction log items)
+        contribs = pred.feature_contributions
+        if not contribs and features:
+            try:
+                row = [
+                    float(features.get("pregnancies", 0.0)),
+                    float(features.get("glucose", 0.0)),
+                    float(features.get("blood_pressure", 0.0)),
+                    float(features.get("insulin", 0.0)),
+                    float(features.get("bmi", 0.0)),
+                    float(features.get("age", 0.0))
+                ]
+                contribs = ml_service.model.explain_prediction(row)
+            except Exception:
+                contribs = None
+                
         results.append(PredictionOut(
             id=pred.id,
             patient_id=pred.patient_id,
             model_name=pred.model_name,
             input_features=pred.input_features,
+            feature_contributions=contribs,
             risk_score=pred.risk_score,
             prediction=pred.prediction,
             created_at=pred.created_at,

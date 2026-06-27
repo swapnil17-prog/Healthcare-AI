@@ -1,15 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Download, Calendar, Activity, RefreshCw, User as UserIcon, FileText } from 'lucide-react';
+import { Download, Activity, RefreshCw, User as UserIcon, FileText } from 'lucide-react';
 import { 
   useGetPatientsQuery, 
   useGetPredictionsQuery, 
-  useGetAppointmentsQuery, 
-  useGetDoctorsQuery, 
-  useGetMedicalHistoryQuery,
   useUpdatePatientMutation, 
-  useCreateAppointmentMutation,
   downloadPdfReport
 } from '../services/apiSlice';
+import { motion } from 'framer-motion';
 import ChatWidget from '../components/ChatWidget';
 import TrendChart from '../components/TrendChart';
 import './PatientDashboard.css';
@@ -19,19 +16,9 @@ export default function PatientDashboard() {
   const patient = patientsList?.[0];
 
   const { data: predictions = [], isLoading: isPredsLoading } = useGetPredictionsQuery(patient?.id, { skip: !patient });
-  const { data: appointments = [], isLoading: isApptsLoading } = useGetAppointmentsQuery();
-  const { data: doctors = [], isLoading: isDocsLoading } = useGetDoctorsQuery();
-  const { data: medicalHistory = [], isLoading: isHistoryLoading } = useGetMedicalHistoryQuery(patient?.id, { skip: !patient });
 
   const [updatePatient] = useUpdatePatientMutation();
-  const [createAppointment] = useCreateAppointmentMutation();
 
-  // Booking states
-  const [selectedDoctorId, setSelectedDoctorId] = useState('');
-  const [scheduledAt, setScheduledAt] = useState('');
-  const [apptNotes, setApptNotes] = useState('');
-  const [showBookForm, setShowBookForm] = useState(false);
-  const [bookingLoading, setBookingLoading] = useState(false);
   const [pdfLoading, setPdfLoading] = useState(false);
 
   // Profile Edit states
@@ -43,6 +30,21 @@ export default function PatientDashboard() {
   const [bloodGroup, setBloodGroup] = useState('');
   const [phone, setPhone] = useState('');
   const [address, setAddress] = useState('');
+
+  // Health Target Goals states
+  const [isEditingGoals, setIsEditingGoals] = useState(false);
+  const [targetGlucose, setTargetGlucose] = useState(localStorage.getItem('target_glucose') || '100');
+  const [targetBmi, setTargetBmi] = useState(localStorage.getItem('target_bmi') || '24.0');
+  const [targetBp, setTargetBp] = useState(localStorage.getItem('target_bp') || '80');
+
+  const handleSaveGoals = (e) => {
+    e.preventDefault();
+    localStorage.setItem('target_glucose', targetGlucose);
+    localStorage.setItem('target_bmi', targetBmi);
+    localStorage.setItem('target_bp', targetBp);
+    setIsEditingGoals(false);
+    alert('Health goals updated successfully.');
+  };
 
   useEffect(() => {
     if (patient) {
@@ -96,34 +98,7 @@ export default function PatientDashboard() {
     }
   };
 
-  const handleScheduleAppt = async (e) => {
-    e.preventDefault();
-    if (!selectedDoctorId || !scheduledAt || !patient) {
-      alert('Please fill out all scheduling details.');
-      return;
-    }
-    setBookingLoading(true);
-    try {
-      await createAppointment({
-        patient_id: patient.id,
-        doctor_id: parseInt(selectedDoctorId),
-        scheduled_at: new Date(scheduledAt).toISOString(),
-        status: 'Scheduled',
-        notes: apptNotes
-      }).unwrap();
-      setSelectedDoctorId('');
-      setScheduledAt('');
-      setApptNotes('');
-      setShowBookForm(false);
-      alert('Consultation scheduled successfully.');
-    } catch (err) {
-      alert(`Scheduling failed: ${err.data?.detail || err.message}`);
-    } finally {
-      setBookingLoading(false);
-    }
-  };
-
-  const loading = isPatientsLoading || (patient && (isPredsLoading || isApptsLoading || isDocsLoading || isHistoryLoading));
+  const loading = isPatientsLoading || (patient && isPredsLoading);
 
   if (loading) {
     return <div className="dashboard-loading-container">Loading Patient Dashboard...</div>;
@@ -136,6 +111,14 @@ export default function PatientDashboard() {
   const radius = 50;
   const circumference = 2 * Math.PI * radius;
   const offset = circumference - (riskScore / 100) * circumference;
+
+  // Extract latest vitals for goal progress trackers
+  const latestGlucose = latestPrediction ? latestPrediction.input_features.glucose : null;
+  const calculatedBmi = patient?.weight && patient?.height 
+    ? (patient.weight / ((patient.height / 100) ** 2)).toFixed(1)
+    : null;
+  const latestBmi = latestPrediction ? latestPrediction.input_features.bmi : calculatedBmi;
+  const latestBp = latestPrediction ? latestPrediction.input_features.blood_pressure : null;
 
   return (
     <div className="patient-dashboard-container">
@@ -163,20 +146,37 @@ export default function PatientDashboard() {
         </button>
       </div>
 
-      <div className="dashboard-grid">
+      <motion.div 
+        className="dashboard-grid"
+        variants={{
+          hidden: { opacity: 0 },
+          show: { opacity: 1, transition: { staggerChildren: 0.08 } }
+        }}
+        initial="hidden"
+        animate="show"
+      >
         {/* Risk Score Widget */}
-        <div className="glass-card grid-card score-card">
+        <motion.div 
+          className="glass-card grid-card score-card"
+          variants={{
+            hidden: { opacity: 0, y: 15 },
+            show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: 'easeOut' } }
+          }}
+          whileHover={{ scale: 1.02, boxShadow: '0 8px 30px rgba(99, 102, 241, 0.15)', borderColor: 'rgba(99,102,241,0.2)' }}
+        >
           <h3>Diabetes Risk Assessment</h3>
           <div className="gauge-outer">
             <svg className="gauge-svg" width="140" height="140">
               <circle className="gauge-bg" cx="70" cy="70" r={radius} />
-              <circle
+              <motion.circle
                 className={`gauge-bar ${riskScore >= 50 ? 'high-risk' : 'low-risk'}`}
                 cx="70"
                 cy="70"
                 r={radius}
                 strokeDasharray={circumference}
-                strokeDashoffset={offset}
+                initial={{ strokeDashoffset: circumference }}
+                animate={{ strokeDashoffset: offset }}
+                transition={{ duration: 1, ease: 'easeOut' }}
               />
             </svg>
             <div className="gauge-info">
@@ -189,10 +189,17 @@ export default function PatientDashboard() {
               ? `Your latest assessment was compiled on ${new Date(latestPrediction.created_at).toLocaleDateString()}.`
               : 'You have not completed a diabetes risk screening yet.'}
           </p>
-        </div>
+        </motion.div>
 
         {/* Demographics Summary */}
-        <div className="glass-card grid-card info-card">
+        <motion.div 
+          className="glass-card grid-card info-card"
+          variants={{
+            hidden: { opacity: 0, y: 15 },
+            show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: 'easeOut' } }
+          }}
+          whileHover={{ scale: 1.02, boxShadow: '0 8px 30px rgba(99, 102, 241, 0.15)', borderColor: 'rgba(99,102,241,0.2)' }}
+        >
           <div className="card-title-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <UserIcon size={18} className="card-icon" />
@@ -299,130 +306,118 @@ export default function PatientDashboard() {
               </div>
             </>
           )}
-        </div>
+        </motion.div>
+
+        {/* Health Target Goals Tracker */}
+        <motion.div 
+          className="glass-card grid-card goals-card"
+          variants={{
+            hidden: { opacity: 0, y: 15 },
+            show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: 'easeOut' } }
+          }}
+          whileHover={{ scale: 1.02, boxShadow: '0 8px 30px rgba(99, 102, 241, 0.15)', borderColor: 'rgba(99,102,241,0.2)' }}
+        >
+          <div className="card-title-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <FileText size={18} className="card-icon" />
+              <h3>Health Target Goals</h3>
+            </div>
+            <button 
+              onClick={() => setIsEditingGoals(!isEditingGoals)} 
+              className="btn btn-secondary" 
+              style={{ padding: '4px 10px', fontSize: '11px', height: 'auto', minHeight: 'unset' }}
+            >
+              {isEditingGoals ? 'Cancel' : 'Set Targets'}
+            </button>
+          </div>
+          
+          {isEditingGoals ? (
+            <form onSubmit={handleSaveGoals} className="demographics-form" style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '10px' }}>
+              <div className="form-group">
+                <label className="input-label" style={{ fontSize: '11px' }}>Target Glucose (mg/dL)</label>
+                <input 
+                  type="number" 
+                  className="input-field" 
+                  value={targetGlucose} 
+                  onChange={(e) => setTargetGlucose(e.target.value)} 
+                  required 
+                  style={{ padding: '6px 12px', fontSize: '12px' }}
+                />
+              </div>
+              <div className="form-group">
+                <label className="input-label" style={{ fontSize: '11px' }}>Target BMI</label>
+                <input 
+                  type="number" 
+                  step="0.1" 
+                  className="input-field" 
+                  value={targetBmi} 
+                  onChange={(e) => setTargetBmi(e.target.value)} 
+                  required 
+                  style={{ padding: '6px 12px', fontSize: '12px' }}
+                />
+              </div>
+              <div className="form-group">
+                <label className="input-label" style={{ fontSize: '11px' }}>Target Diastolic BP (mmHg)</label>
+                <input 
+                  type="number" 
+                  className="input-field" 
+                  value={targetBp} 
+                  onChange={(e) => setTargetBp(e.target.value)} 
+                  required 
+                  style={{ padding: '6px 12px', fontSize: '12px' }}
+                />
+              </div>
+              <button type="submit" className="btn btn-primary" style={{ padding: '8px', fontSize: '12px' }}>Save Goals</button>
+            </form>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', flex: 1, justifyContent: 'center', marginTop: '10px' }}>
+              <GoalProgressBar 
+                name="Glucose Level" 
+                current={latestGlucose} 
+                target={parseFloat(targetGlucose)} 
+                unit=" mg/dL" 
+              />
+              <GoalProgressBar 
+                name="Body Mass Index (BMI)" 
+                current={latestBmi} 
+                target={parseFloat(targetBmi)} 
+                unit="" 
+              />
+              <GoalProgressBar 
+                name="Diastolic Blood Pressure" 
+                current={latestBp} 
+                target={parseFloat(targetBp)} 
+                unit=" mmHg" 
+              />
+            </div>
+          )}
+        </motion.div>
 
         {/* Assessment Metric Trends Chart */}
-        <div className="glass-card grid-card full-width trends-chart-card">
+        <motion.div 
+          className="glass-card grid-card full-width trends-chart-card"
+          variants={{
+            hidden: { opacity: 0, y: 15 },
+            show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: 'easeOut' } }
+          }}
+          whileHover={{ scale: 1.02, boxShadow: '0 8px 30px rgba(99, 102, 241, 0.15)', borderColor: 'rgba(99,102,241,0.2)' }}
+        >
           <div className="card-title-row">
             <Activity size={18} className="card-icon" />
             <h3>Assessment Metric Trends</h3>
           </div>
           <TrendChart predictions={predictions} />
-        </div>
-
-        {/* Upcoming Appointments */}
-        <div className="glass-card grid-card appointments-card">
-          <div className="card-title-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Calendar size={18} className="card-icon" />
-              <h3>Upcoming Appointments</h3>
-            </div>
-            {!showBookForm && (
-              <button onClick={() => setShowBookForm(true)} className="btn btn-secondary" style={{ padding: '6px 12px', fontSize: '12px' }}>
-                + Book New
-              </button>
-            )}
-          </div>
-          
-          {!showBookForm ? (
-            <div className="list-body">
-              {appointments.length === 0 ? (
-                <p className="empty-text">No scheduled appointments.</p>
-              ) : (
-                appointments.map((appt) => (
-                  <div key={appt.id} className="list-item">
-                    <div className="item-meta">
-                      <span className="item-title">Consultation Call</span>
-                      <span className="item-date">
-                        {new Date(appt.scheduled_at).toLocaleDateString()} at {new Date(appt.scheduled_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                      </span>
-                    </div>
-                    <span className={`badge ${appt.status === 'Scheduled' ? 'badge-warning' : 'badge-success'}`}>
-                      {appt.status}
-                    </span>
-                  </div>
-                ))
-              )}
-            </div>
-          ) : (
-            <form onSubmit={handleScheduleAppt} className="booking-form-inline" style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              <div className="form-group">
-                <label className="input-label" style={{ fontSize: '10px' }}>Select Doctor</label>
-                <select
-                  className="input-field select-field"
-                  value={selectedDoctorId}
-                  onChange={(e) => setSelectedDoctorId(e.target.value)}
-                  required
-                  style={{ padding: '8px 12px', fontSize: '13px' }}
-                >
-                  <option value="">-- Choose Doctor --</option>
-                  {doctors.map((d) => (
-                    <option key={d.id} value={d.id}>{d.name}</option>
-                  ))}
-                </select>
-              </div>
-              <div className="form-group">
-                <label className="input-label" style={{ fontSize: '10px' }}>Date & Time</label>
-                <input
-                  type="datetime-local"
-                  className="input-field"
-                  value={scheduledAt}
-                  onChange={(e) => setScheduledAt(e.target.value)}
-                  required
-                  style={{ padding: '8px 12px', fontSize: '13px' }}
-                />
-              </div>
-              <div className="form-group">
-                <label className="input-label" style={{ fontSize: '10px' }}>Notes</label>
-                <input
-                  type="text"
-                  className="input-field"
-                  value={apptNotes}
-                  onChange={(e) => setApptNotes(e.target.value)}
-                  placeholder="Need diabetes screening..."
-                  style={{ padding: '8px 12px', fontSize: '13px' }}
-                />
-              </div>
-              <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
-                <button type="submit" className="btn btn-primary" disabled={bookingLoading} style={{ flex: 1, padding: '8px 12px', fontSize: '13px' }}>
-                  {bookingLoading ? 'Booking...' : 'Schedule'}
-                </button>
-                <button type="button" className="btn btn-secondary" onClick={() => setShowBookForm(false)} style={{ padding: '8px 12px', fontSize: '13px' }}>
-                  Cancel
-                </button>
-              </div>
-            </form>
-          )}
-        </div>
-
-        {/* Clinical Medical History Log */}
-        <div className="glass-card grid-card medical-history-card">
-          <div className="card-title-row">
-            <FileText size={18} className="card-icon" />
-            <h3>Your Clinical Medical History</h3>
-          </div>
-          <div className="list-body">
-            {medicalHistory.length === 0 ? (
-              <p className="empty-text">No clinical history logged in your file.</p>
-            ) : (
-              medicalHistory.map((h) => (
-                <div key={h.id} className="history-log-item-dashboard">
-                  <div className="history-item-header-dashboard">
-                    <h5>{h.disease}</h5>
-                    <span className="history-item-date-dashboard">{new Date(h.diagnosis_date).toLocaleDateString()}</span>
-                  </div>
-                  <div className="history-item-body-dashboard">
-                    {h.medications && <p style={{ margin: '0 0 6px 0' }}><strong>Medications:</strong> {h.medications}</p>}
-                    {h.notes && <p style={{ margin: 0 }}><strong>Notes:</strong> {h.notes}</p>}
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
+        </motion.div>
 
         {/* Prediction History Log */}
-        <div className="glass-card grid-card full-width predictions-log-card">
+        <motion.div 
+          className="glass-card grid-card full-width predictions-log-card"
+          variants={{
+            hidden: { opacity: 0, y: 15 },
+            show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: 'easeOut' } }
+          }}
+          whileHover={{ scale: 1.02, boxShadow: '0 8px 30px rgba(99, 102, 241, 0.15)', borderColor: 'rgba(99,102,241,0.2)' }}
+        >
           <div className="card-title-row">
             <Activity size={18} className="card-icon" />
             <h3>Diabetes Risk Assessment Log</h3>
@@ -468,11 +463,67 @@ export default function PatientDashboard() {
               </table>
             )}
           </div>
-        </div>
-      </div>
+        </motion.div>
+      </motion.div>
 
       {/* Floating Chat Widget */}
       <ChatWidget />
+    </div>
+  );
+}
+
+function GoalProgressBar({ name, current, target, unit }) {
+  if (current === null || current === undefined) {
+    return (
+      <div style={{ fontSize: '12.5px', color: 'hsl(var(--text-muted))' }}>
+        <strong>{name}:</strong> No vitals log. Submit screening parameters.
+      </div>
+    );
+  }
+  
+  const curVal = parseFloat(current);
+  const tarVal = parseFloat(target);
+  const diff = curVal - tarVal;
+  const isAchieved = curVal <= tarVal;
+  
+  // Compute percentage value to render progress bar.
+  // If achieved, progress is 100%. If exceeds, progress decreases.
+  let percentage = 100;
+  if (!isAchieved) {
+    percentage = Math.max(10, Math.round((1 - (diff / tarVal)) * 100));
+  }
+  
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12.5px', alignItems: 'baseline' }}>
+        <div>
+          <span style={{ color: 'white', fontWeight: 600 }}>{name}</span>
+          <span style={{ fontSize: '11px', color: 'hsl(var(--text-muted))', marginLeft: '6px' }}>
+            (Target: {target}{unit})
+          </span>
+        </div>
+        <span style={{ fontWeight: '700', color: isAchieved ? '#34d399' : '#f87171' }}>
+          {current}{unit}
+        </span>
+      </div>
+      
+      <div style={{ width: '100%', height: '8px', background: 'rgba(255, 255, 255, 0.05)', borderRadius: '4px', overflow: 'hidden' }}>
+        <div 
+          style={{ 
+            width: `${percentage}%`, 
+            height: '100%', 
+            background: isAchieved 
+              ? 'linear-gradient(90deg, #059669 0%, #34d399 100%)' 
+              : 'linear-gradient(90deg, #d97706 0%, #f87171 100%)',
+            borderRadius: '4px',
+            transition: 'width 0.5s ease-in-out'
+          }} 
+        />
+      </div>
+      
+      <span style={{ fontSize: '11px', color: isAchieved ? '#34d399' : 'hsl(var(--text-muted))' }}>
+        {isAchieved ? '🎉 Goal Achieved!' : `Exceeds target goal by +${diff.toFixed(1)}${unit}`}
+      </span>
     </div>
   );
 }

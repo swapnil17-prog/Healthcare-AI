@@ -33,7 +33,7 @@ graph TD
 1. **User Authentication:** 
    Users register and login with roles (`admin`, `doctor`, `patient`). Access tokens (JWT) are returned in the response body for API requests, while a longer-lived refresh token is stored in a secure, `HttpOnly` cookie to seamlessly renew expired sessions.
 2. **Patient Risk Prediction Pipeline:** 
-   When a user (or their assigned doctor/admin) initiates a risk scan, physiological vitals (Pregnancies, Glucose, Blood Pressure, Insulin, BMI, Age) are submitted. The FastAPI backend triggers the ML service, executing a pure-Python `SimpleLogisticRegression` model. The resulting percentage risk score is processed through the **Doctor Referral Rule Engine** (to suggest specialists like Endocrinologists, Cardiologists, or Nutritionists) and stored in the database.
+   When a user (or their assigned doctor/admin) initiates a risk scan, physiological vitals (Pregnancies, Glucose, Blood Pressure, Insulin, BMI, Age) are submitted. The FastAPI backend triggers the ML service, executing an optimized pure-Python `SimpleLogisticRegression` model. The resulting percentage risk score and log-odds Explainable AI (XAI) feature contributions are calculated, processed through the **Doctor Referral Rule Engine** (to suggest specialists like Endocrinologists, Cardiologists, or Nutritionists), and stored in the database.
 3. **Retrieval-Augmented Generation (RAG) Chatbot:** 
    A floating chat widget streams responses from Claude 3.5 Sonnet. When a patient queries the assistant, the backend retrieves their latest ML prediction metrics and queries a local `TfidfVectorizer` vector store indexing clinical guidelines (normal glucose ranges, BMI definitions) and app guides. This contextual package is injected into the Claude system prompt alongside clinical guardrails to deliver medical explanations without giving direct medical diagnoses.
 4. **PDF Generation:** 
@@ -55,7 +55,7 @@ The backend is built with **FastAPI** and uses **SQLAlchemy ORM** to connect to 
 | [database.py](file:///c:/Users/LENOVO/OneDrive/Desktop/Healthcare/Healthcare/backend/app/database/database.py) | **Database Connection Setup:** Configures SQLAlchemy's database engine, handles session makers (`SessionLocal`), and exports the declarative `Base` model. Supports SQLite out-of-the-box but is structured to easily switch to PostgreSQL. |
 | [models.py](file:///c:/Users/LENOVO/OneDrive/Desktop/Healthcare/Healthcare/backend/app/models/models.py) | **SQLAlchemy Database Models:** Defines the database tables and relational schemas including `User` (auth data), `Patient` (vitals and profiles), `MedicalHistory` (clinical histories), `LabReport` (uploaded documents), `Prediction` (stored ML scores), `Appointment` (consultations), and `ChatMessage` (chat logs). |
 | [requirements.txt](file:///c:/Users/LENOVO/OneDrive/Desktop/Healthcare/Healthcare/backend/requirements.txt) | **Backend Dependencies:** Lists required Python packages including `fastapi`, `uvicorn`, `sqlalchemy`, `python-jose`, `bcrypt`, `reportlab`, `scikit-learn`, and `slowapi`. |
-| [train_model.py](file:///c:/Users/LENOVO/OneDrive/Desktop/Healthcare/Healthcare/backend/train_model.py) | **ML Training Script:** A standalone script that downloads the Pima Indians Diabetes Dataset, imputes missing physiological values with column medians, trains the custom Logistic Regression model, prints accuracy metrics, and saves the trained weights into `models/diabetes_model.pkl`. |
+| [train_model.py](file:///c:/Users/LENOVO/OneDrive/Desktop/Healthcare/Healthcare/backend/train_model.py) | **ML Training Script:** A standalone script that downloads the Pima Indians Diabetes Dataset, imputes missing physiological values with column medians, balances class distributions via minority class oversampling, runs hyperparameter grid-search cross-validation to select the optimal learning rate and epochs, trains the custom Logistic Regression model, prints accuracy metrics, and saves the trained weights into `models/diabetes_model.pkl`. |
 
 #### Security & Auth Subfolder (`backend/app/auth/`)
 | File Path / Link | Description |
@@ -66,8 +66,8 @@ The backend is built with **FastAPI** and uses **SQLAlchemy ORM** to connect to 
 #### Machine Learning Subfolder (`backend/app/ml/`)
 | File Path / Link | Description |
 | :--- | :--- |
-| [model_definition.py](file:///c:/Users/LENOVO/OneDrive/Desktop/Healthcare/Healthcare/backend/app/ml/model_definition.py) | **Pure-Python Classifier:** Contains the `SimpleLogisticRegression` class definition, incorporating min-max feature scaling, fit loop gradient descent, and probability estimation. Avoids native binaries (SciPy/NumPy compiled DLLs) to ensure strict system compatibility. |
-| [ml_service.py](file:///c:/Users/LENOVO/OneDrive/Desktop/Healthcare/Healthcare/backend/app/ml/ml_service.py) | **Inference Singleton Wrapper:** Loads the pickled model binary and executes probability predictions on input profiles to calculate percentage risk scores. |
+| [model_definition.py](file:///c:/Users/LENOVO/OneDrive/Desktop/Healthcare/Healthcare/backend/app/ml/model_definition.py) | **Pure-Python Classifier:** Contains the `SimpleLogisticRegression` class definition, incorporating min-max feature scaling, fit loop gradient descent, probability estimation, and a feature contribution method to support Explainable AI (XAI). Avoids native binaries (SciPy/NumPy compiled DLLs) to ensure strict system compatibility. |
+| [ml_service.py](file:///c:/Users/LENOVO/OneDrive/Desktop/Healthcare/Healthcare/backend/app/ml/ml_service.py) | **Inference Singleton Wrapper:** Loads the pickled model binary and executes probability predictions on input profiles to calculate percentage risk scores and log-odds feature contributions. |
 
 #### Schemas Subfolder (`backend/app/schemas/`)
 Pydantic schemas enforce type safety and format requirements on requests and serialize API responses.
@@ -158,6 +158,7 @@ Here is a summary of the features and engineering work implemented in the projec
 10. **Modern Glassmorphism UI:** Designed a premium interface using vanilla CSS variables, dark-mode styling, glowing gradients, hover states, and keyframe animations.
 11. **Interactive Recharts Visualizations:** Integrated charts displaying vital parameters and population demographics, including a radial gauge, risk distribution pie chart, and historical trend lines.
 12. **Automated Testing Suite:** Created 6 dedicated test scripts to verify the functionality of authentication, CRUD operations, predictions, document uploads, chat response generation, and PDF compilation.
+13. **Explainable AI (XAI) & Hyperparameter Grid Search:** Balanced model training via minority class oversampling and implemented validation grid search tuning. Added signed log-odds contribution calculations to explain ML classifications, which are persisted in the database and rendered as custom bar charts in the frontend screening UI.
 
 ---
 

@@ -7,6 +7,7 @@ import {
   useUploadReportMutation, 
   useLazyGetPredictionsQuery 
 } from '../services/apiSlice';
+import { motion } from 'framer-motion';
 import './Predictions.css';
 
 export default function Predictions() {
@@ -215,7 +216,14 @@ export default function Predictions() {
                   />
                 </div>
               </div>
-              <button type="submit" className="btn btn-secondary" disabled={uploadLoading || !reportFile || !selectedPatientId} style={{ padding: '8px 12px', fontSize: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', cursor: 'pointer' }}>
+              <motion.button 
+                whileHover={{ scale: 1.03 }} 
+                whileTap={{ scale: 0.97 }}
+                type="submit" 
+                className="btn btn-secondary" 
+                disabled={uploadLoading || !reportFile || !selectedPatientId} 
+                style={{ padding: '8px 12px', fontSize: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', cursor: 'pointer' }}
+              >
                 {uploadLoading ? (
                   <>
                     <RefreshCw className="animate-spin" size={14} />
@@ -227,7 +235,7 @@ export default function Predictions() {
                     <span>Upload & Auto-Fill Vitals</span>
                   </>
                 )}
-              </button>
+              </motion.button>
             </form>
           </div>
 
@@ -293,10 +301,16 @@ export default function Predictions() {
               </div>
             </div>
 
-            <button type="submit" className="btn btn-primary run-inference-btn" disabled={predictionLoading}>
+            <motion.button 
+              whileHover={{ scale: 1.03 }} 
+              whileTap={{ scale: 0.97 }}
+              type="submit" 
+              className="btn btn-primary run-inference-btn" 
+              disabled={predictionLoading}
+            >
               <ClipboardCheck size={18} />
               <span>{predictionLoading ? 'Analyzing Vitals...' : 'Compile Risk Score'}</span>
-            </button>
+            </motion.button>
           </form>
         </div>
 
@@ -366,6 +380,54 @@ export default function Predictions() {
                   <span>Age: <strong>{result.input_features.age} yrs</strong></span>
                 </div>
               </div>
+
+              {/* Risk Drivers (Explainable AI) */}
+              {result.feature_contributions && (
+                <div className="result-explainability glass-card shadow-sm" style={{ padding: '16px', background: 'rgba(10, 15, 30, 0.4)' }}>
+                  <h5 style={{ fontSize: '11px', textTransform: 'uppercase', color: 'hsl(var(--text-muted))', marginBottom: '12px', letterSpacing: '0.05em', borderBottom: '1px solid rgba(255, 255, 255, 0.05)', paddingBottom: '6px' }}>
+                    Risk Drivers (Explainable AI)
+                  </h5>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    {Object.entries(result.feature_contributions).map(([feature, contribution]) => {
+                      const labels = {
+                        glucose: 'Glucose level',
+                        bmi: 'BMI (Body Mass Index)',
+                        age: 'Age Factor',
+                        blood_pressure: 'Diastolic BP',
+                        insulin: 'Serum Insulin',
+                        pregnancies: 'Pregnancy History'
+                      };
+                      const displayName = labels[feature] || feature;
+                      const absVal = Math.abs(contribution);
+                      const barWidth = Math.min(100, Math.round(absVal * 150));
+                      const isPositive = contribution >= 0;
+                      
+                      return (
+                        <div key={feature} style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11.5px' }}>
+                            <span style={{ color: 'white' }}>{displayName}</span>
+                            <span style={{ color: isPositive ? '#f87171' : '#34d399', fontWeight: 600 }}>
+                              {isPositive ? '+' : ''}{contribution.toFixed(2)}
+                            </span>
+                          </div>
+                          <div style={{ width: '100%', height: '6px', background: 'rgba(255, 255, 255, 0.05)', borderRadius: '3px', overflow: 'hidden' }}>
+                            <div 
+                              style={{ 
+                                width: `${barWidth}%`, 
+                                height: '100%', 
+                                background: isPositive 
+                                  ? 'linear-gradient(90deg, hsl(var(--primary)) 0%, #f87171 100%)' 
+                                  : 'linear-gradient(90deg, #10b981 0%, #34d399 100%)',
+                                borderRadius: '3px'
+                              }} 
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
 
               {/* Referrals (Rule Engine) */}
               <div className="result-referrals-list">

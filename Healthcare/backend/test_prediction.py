@@ -101,6 +101,8 @@ def test_prediction_and_referrals():
     # Assert ML Output
     assert pred_data["prediction"] == "High Risk"
     assert pred_data["risk_score"] > 50.0
+    assert "feature_contributions" in pred_data
+    assert all(k in pred_data["feature_contributions"] for k in ["pregnancies", "glucose", "blood_pressure", "insulin", "bmi", "age"])
     
     # Assert Rule-based Doctor Recommendations
     recs = pred_data["recommendations"]
@@ -129,6 +131,8 @@ def test_prediction_and_referrals():
     
     # Assert ML Output
     assert pred_low_data["prediction"] == "Low Risk"
+    assert "feature_contributions" in pred_low_data
+    assert all(k in pred_low_data["feature_contributions"] for k in ["pregnancies", "glucose", "blood_pressure", "insulin", "bmi", "age"])
     
     # Assert Default referral to GP (General Practitioner) since no triggers met
     low_recs = pred_low_data["recommendations"]
@@ -144,6 +148,9 @@ def test_prediction_and_referrals():
     history_data = history_res.json()
     print(f"Predictions in history: {len(history_data)}")
     assert len(history_data) >= 2
+    for item in history_data:
+        assert "feature_contributions" in item
+        assert all(k in item["feature_contributions"] for k in ["pregnancies", "glucose", "blood_pressure", "insulin", "bmi", "age"])
     print("OK Historical predictions persisted and retrieved correctly.")
 
     # 8. Test access control on unassigned patient prediction

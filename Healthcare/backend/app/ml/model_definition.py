@@ -71,3 +71,19 @@ class SimpleLogisticRegression:
     def predict(self, X):
         probs = self.predict_proba(X)
         return [1 if p[1] >= 0.5 else 0 for p in probs]
+
+    def explain_prediction(self, X_row):
+        # X_row: list of floats representing a single row
+        # Features order mapping matches training:
+        features_keys = ["pregnancies", "glucose", "blood_pressure", "insulin", "bmi", "age"]
+        contributions = {}
+        n_features = len(self.weights)
+        for i, val in enumerate(X_row):
+            if i >= n_features:
+                break
+            denom = (self.max_vals[i] - self.min_vals[i])
+            scaled_val = (val - self.min_vals[i]) / denom if denom != 0 else 0.0
+            contrib = scaled_val * self.weights[i]
+            contributions[features_keys[i]] = round(contrib, 4)
+        return contributions
+

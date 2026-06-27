@@ -67,12 +67,68 @@ def train_and_save_model():
     
     # Split into train/test (80% / 20%)
     split_idx = int(len(X) * 0.8)
-    X_train, X_test = X[:split_idx], X[split_idx:]
-    y_train, y_test = y[:split_idx], y[split_idx:]
+    X_train_raw, X_test = X[:split_idx], X[split_idx:]
+    y_train_raw, y_test = y[:split_idx], y[split_idx:]
     
-    # 4. Train SimpleLogisticRegression
-    print("Training SimpleLogisticRegression model...")
-    model = SimpleLogisticRegression(learning_rate=0.08, epochs=3000)
+    # 4. Resolve class imbalance on the training split using minority class oversampling
+    import random
+    random.seed(42)
+    
+    train_pos = [X_train_raw[i] for i in range(len(X_train_raw)) if y_train_raw[i] == 1]
+    train_neg = [X_train_raw[i] for i in range(len(X_train_raw)) if y_train_raw[i] == 0]
+    
+    print(f"Class counts before balancing: Negatives={len(train_neg)}, Positives={len(train_pos)}")
+    while len(train_pos) < len(train_neg):
+        train_pos.append(random.choice(train_pos))
+        
+    X_train_balanced = []
+    y_train_balanced = []
+    for row in train_pos:
+        X_train_balanced.append(row)
+        y_train_balanced.append(1)
+    for row in train_neg:
+        X_train_balanced.append(row)
+        y_train_balanced.append(0)
+        
+    combined = list(zip(X_train_balanced, y_train_balanced))
+    random.shuffle(combined)
+    X_train, y_train = zip(*combined)
+    X_train = list(X_train)
+    y_train = list(y_train)
+    print(f"Class counts after oversampling: Negatives={y_train.count(0)}, Positives={y_train.count(1)}")
+    
+    # 5. Run Hyperparameter Grid Search using a validation split (80/20 of the balanced training data)
+    val_split = int(len(X_train) * 0.8)
+    X_train_sub, X_val_sub = X_train[:val_split], X_train[val_split:]
+    y_train_sub, y_val_sub = y_train[:val_split], y_train[val_split:]
+    
+    best_val_acc = -1.0
+    best_lr = 0.08
+    best_epochs = 3000
+    
+    learning_rates = [0.01, 0.03, 0.05, 0.08, 0.1, 0.15]
+    epochs_candidates = [1000, 2000, 3000, 4000]
+    
+    print("\nRunning Hyperparameter Grid Search...")
+    for lr in learning_rates:
+        for epochs in epochs_candidates:
+            candidate = SimpleLogisticRegression(learning_rate=lr, epochs=epochs)
+            candidate.fit(X_train_sub, y_train_sub)
+            preds = candidate.predict(X_val_sub)
+            val_acc = sum(1 for p, t in zip(preds, y_val_sub) if p == t) / len(y_val_sub)
+            print(f" - LR: {lr:.2f}, Epochs: {epochs} => Validation Accuracy: {val_acc * 100:.2f}%")
+            
+            # Save if better validation score (or fewer epochs if ties to prevent overfitting)
+            if val_acc > best_val_acc:
+                best_val_acc = val_acc
+                best_lr = lr
+                best_epochs = epochs
+                
+    print(f"\nGrid Search Finished. Optimal Config: LR={best_lr}, Epochs={best_epochs} (Val Accuracy: {best_val_acc * 100:.2f}%)")
+    
+    # 6. Train final model with the selected optimal hyperparameters on full training set
+    print(f"\nTraining final model with LR={best_lr}, Epochs={best_epochs}...")
+    model = SimpleLogisticRegression(learning_rate=best_lr, epochs=best_epochs)
     model.fit(X_train, y_train)
     
     # Evaluate
@@ -82,10 +138,10 @@ def train_and_save_model():
     train_acc = sum(1 for p, t in zip(train_preds, y_train) if p == t) / len(y_train)
     test_acc = sum(1 for p, t in zip(test_preds, y_test) if p == t) / len(y_test)
     
-    print(f"Training Accuracy: {train_acc * 100:.2f}%")
-    print(f"Test Accuracy: {test_acc * 100:.2f}%")
+    print(f"Final Balanced Training Accuracy: {train_acc * 100:.2f}%")
+    print(f"Final Unbalanced Test Accuracy: {test_acc * 100:.2f}%")
     
-    # 5. Save pickle
+    # 7. Save pickle
     models_dir = os.path.join(current_dir, "models")
     os.makedirs(models_dir, exist_ok=True)
     model_file_path = os.path.join(models_dir, "diabetes_model.pkl")

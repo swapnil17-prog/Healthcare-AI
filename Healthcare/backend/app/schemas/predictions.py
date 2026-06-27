@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from datetime import datetime
 
 class PredictionRequest(BaseModel):
@@ -15,6 +15,7 @@ class PredictionOut(BaseModel):
     patient_id: int
     model_name: str
     input_features: Dict[str, Any]
+    feature_contributions: Optional[Dict[str, float]] = None
     risk_score: float
     prediction: str
     created_at: datetime

@@ -11,6 +11,7 @@ base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 dotenv_path = os.path.join(base_dir, ".env")
 load_dotenv(dotenv_path)
 
+from sqlalchemy import text
 from app.core.rate_limiter import limiter
 from app.database.database import engine
 from app.models.models import Base
@@ -18,6 +19,14 @@ from app.api import auth, patients, appointments, medical_history, predictions, 
 
 # Initialize Database tables
 Base.metadata.create_all(bind=engine)
+
+# Ensure feature_contributions column exists in predictions table for existing databases
+try:
+    with engine.connect() as conn:
+        conn.execute(text("ALTER TABLE predictions ADD COLUMN feature_contributions JSON"))
+        conn.commit()
+except Exception:
+    pass
 
 app = FastAPI(
     title="Healthcare AI Patient Risk Prediction API",

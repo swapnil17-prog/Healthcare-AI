@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { MessageSquare, X, Send, AlertTriangle } from 'lucide-react';
+import { AnimatePresence, motion } from 'framer-motion';
 import { api } from '../services/api';
 import './ChatWidget.css';
 
@@ -124,80 +125,126 @@ export default function ChatWidget() {
     <div className="chat-widget-container">
       {/* Floating Toggle Button */}
       {!isOpen && (
-        <button className="chat-trigger-btn" onClick={() => setIsOpen(true)}>
+        <motion.button 
+          whileHover={{ scale: 1.05 }} 
+          whileTap={{ scale: 0.95 }}
+          className="chat-trigger-btn" 
+          onClick={() => setIsOpen(true)}
+        >
           <MessageSquare size={24} />
           <span className="chat-pulse"></span>
-        </button>
+        </motion.button>
       )}
 
       {/* Chat Window Panel */}
-      {isOpen && (
-        <div className="chat-window-panel glass-card">
-          {/* Header */}
-          <div className="chat-header">
-            <div>
-              <h3>AI Health Assistant</h3>
-              <span className="chat-status">AI Assistant Online</span>
+      <AnimatePresence>
+        {isOpen && (
+          <motion.div 
+            className="chat-window-panel glass-card"
+            initial={{ opacity: 0, scale: 0.9, y: 50, x: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0, x: 0 }}
+            exit={{ opacity: 0, scale: 0.9, y: 50, x: 20 }}
+            transition={{ duration: 0.25, ease: 'easeOut' }}
+          >
+            {/* Header */}
+            <div className="chat-header">
+              <div>
+                <h3>AI Health Assistant</h3>
+                <span className="chat-status">AI Assistant Online</span>
+              </div>
+              <button className="chat-close-btn" onClick={() => setIsOpen(false)}>
+                <X size={18} />
+              </button>
             </div>
-            <button className="chat-close-btn" onClick={() => setIsOpen(false)}>
-              <X size={18} />
-            </button>
-          </div>
 
-          {/* Warning Disclaimer Banner */}
-          <div className="chat-disclaimer">
-            <AlertTriangle size={14} className="disclaimer-icon" />
-            <span>
-              <strong>Not a Doctor:</strong> This assistant explains risk labels and app features. It does not diagnose or give medical advice.
-            </span>
-          </div>
+            {/* Warning Disclaimer Banner */}
+            <div className="chat-disclaimer">
+              <AlertTriangle size={14} className="disclaimer-icon" />
+              <span>
+                <strong>Not a Doctor:</strong> This assistant explains risk labels and app features. It does not diagnose or give medical advice.
+              </span>
+            </div>
 
-          {/* Messages Body */}
-          <div className="chat-messages-body">
-            {messages.length === 0 ? (
-              <div className="chat-empty-state">
-                <p>Hello! Ask me about your diabetes risk scores or general app usage like uploading reports.</p>
-              </div>
-            ) : (
-              messages.map((msg) => (
-                <div key={msg.id} className={`chat-bubble-row ${msg.role}`}>
-                  <div className={`chat-bubble ${msg.role}`}>
-                    <p className="chat-bubble-text">{msg.content}</p>
-                    <span className="chat-bubble-time">
-                      {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                    </span>
+            {/* Messages Body */}
+            <div className="chat-messages-body">
+              {messages.length === 0 ? (
+                <div className="chat-empty-state">
+                  <p>Hello! Ask me about your diabetes risk scores or general app usage like uploading reports.</p>
+                </div>
+              ) : (
+                messages.map((msg) => (
+                  <motion.div 
+                    key={msg.id} 
+                    className={`chat-bubble-row ${msg.role}`}
+                    initial={{ opacity: 0, y: 15 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.3 }}
+                  >
+                    <div className={`chat-bubble ${msg.role}`}>
+                      <p className="chat-bubble-text">{msg.content}</p>
+                      <span className="chat-bubble-time">
+                        {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    </div>
+                  </motion.div>
+                ))
+              )}
+              {loading && (
+                <motion.div 
+                  className="chat-bubble-row assistant"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                >
+                  <div className="chat-bubble assistant typing" style={{ display: 'flex', gap: '4px', alignItems: 'center', minHeight: '36px' }}>
+                    {[0, 1, 2].map((idx) => (
+                      <motion.span 
+                        key={idx}
+                        className="dot"
+                        style={{
+                          width: '6px',
+                          height: '6px',
+                          background: 'white',
+                          borderRadius: '50%',
+                          display: 'inline-block'
+                        }}
+                        animate={{ y: [0, -6, 0] }}
+                        transition={{
+                          duration: 0.6,
+                          repeat: Infinity,
+                          delay: idx * 0.15,
+                          ease: 'easeInOut'
+                        }}
+                      />
+                    ))}
                   </div>
-                </div>
-              ))
-            )}
-            {loading && (
-              <div className="chat-bubble-row assistant">
-                <div className="chat-bubble assistant typing">
-                  <span className="dot"></span>
-                  <span className="dot"></span>
-                  <span className="dot"></span>
-                </div>
-              </div>
-            )}
-            <div ref={messagesEndRef} />
-          </div>
+                </motion.div>
+              )}
+              <div ref={messagesEndRef} />
+            </div>
 
-          {/* Input Footer Form */}
-          <form className="chat-footer-form" onSubmit={handleSend}>
-            <input
-              type="text"
-              className="input-field chat-input"
-              placeholder="Ask about reports, risk levels..."
-              value={inputMsg}
-              onChange={(e) => setInputMsg(e.target.value)}
-              disabled={loading}
-            />
-            <button type="submit" className="btn btn-primary chat-send-btn" disabled={!inputMsg.trim() || loading}>
-              <Send size={16} />
-            </button>
-          </form>
-        </div>
-      )}
+            {/* Input Footer Form */}
+            <form className="chat-footer-form" onSubmit={handleSend}>
+              <input
+                type="text"
+                className="input-field chat-input"
+                placeholder="Ask about reports, risk levels..."
+                value={inputMsg}
+                onChange={(e) => setInputMsg(e.target.value)}
+                disabled={loading}
+              />
+              <motion.button 
+                whileHover={{ scale: 1.03 }} 
+                whileTap={{ scale: 0.97 }}
+                type="submit" 
+                className="btn btn-primary chat-send-btn" 
+                disabled={!inputMsg.trim() || loading}
+              >
+                <Send size={16} />
+              </motion.button>
+            </form>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

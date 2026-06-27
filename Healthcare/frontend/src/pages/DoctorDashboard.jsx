@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Users, AlertTriangle, TrendingUp, ShieldCheck, ArrowRight } from 'lucide-react';
-import { ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line, XAxis, YAxis, Tooltip, Legend } from 'recharts';
+import { ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line, XAxis, YAxis, Tooltip, Legend, ScatterChart, Scatter } from 'recharts';
+import { motion } from 'framer-motion';
 import { api } from '../services/api';
 import './DoctorDashboard.css';
 
@@ -123,6 +124,24 @@ export default function DoctorDashboard() {
   const lineData = getLineData();
   const criticalPatients = getCriticalPatients();
 
+  const scatterData = (() => {
+    const data = [];
+    patients.forEach((p) => {
+      const preds = predictionsMap[p.id] || [];
+      if (preds.length > 0) {
+        const latest = preds[preds.length - 1];
+        data.push({
+          name: p.user.name,
+          glucose: latest.input_features.glucose,
+          bmi: latest.input_features.bmi,
+          risk: latest.risk_score,
+          prediction: latest.prediction
+        });
+      }
+    });
+    return data;
+  })();
+
   return (
     <div className="doctor-dashboard-container">
       <div className="bg-gradient-radial"></div>
@@ -137,26 +156,55 @@ export default function DoctorDashboard() {
       </div>
 
       {/* Main Grid */}
-      <div className="dashboard-grid">
+      <motion.div 
+        className="dashboard-grid"
+        variants={{
+          hidden: { opacity: 0 },
+          show: { opacity: 1, transition: { staggerChildren: 0.08 } }
+        }}
+        initial="hidden"
+        animate="show"
+      >
         {/* KPI Panel Cards */}
-        <div className="glass-card kpi-card">
+        <motion.div 
+          className="glass-card kpi-card"
+          variants={{
+            hidden: { opacity: 0, y: 15 },
+            show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: 'easeOut' } }
+          }}
+          whileHover={{ scale: 1.02, boxShadow: '0 8px 30px rgba(99, 102, 241, 0.15)', borderColor: 'rgba(99,102,241,0.2)' }}
+        >
           <Users className="kpi-icon blue" size={24} />
           <div className="kpi-info">
             <span className="kpi-val">{patients.length}</span>
             <span className="kpi-label">Registered Patients</span>
           </div>
-        </div>
+        </motion.div>
 
-        <div className="glass-card kpi-card">
+        <motion.div 
+          className="glass-card kpi-card"
+          variants={{
+            hidden: { opacity: 0, y: 15 },
+            show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: 'easeOut' } }
+          }}
+          whileHover={{ scale: 1.02, boxShadow: '0 8px 30px rgba(99, 102, 241, 0.15)', borderColor: 'rgba(99,102,241,0.2)' }}
+        >
           <AlertTriangle className="kpi-icon red" size={24} />
           <div className="kpi-info">
             <span className="kpi-val">{criticalPatients.length}</span>
             <span className="kpi-label">Critical Patients</span>
           </div>
-        </div>
+        </motion.div>
 
         {/* Recharts Pie Chart (Risk Distribution) */}
-        <div className="glass-card grid-card chart-container-card">
+        <motion.div 
+          className="glass-card grid-card chart-container-card"
+          variants={{
+            hidden: { opacity: 0, y: 15 },
+            show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: 'easeOut' } }
+          }}
+          whileHover={{ scale: 1.02, boxShadow: '0 8px 30px rgba(99, 102, 241, 0.15)', borderColor: 'rgba(99,102,241,0.2)' }}
+        >
           <h3>Risk Severity Distribution</h3>
           {pieData.length === 0 ? (
             <p className="empty-text">No patient data available.</p>
@@ -190,10 +238,17 @@ export default function DoctorDashboard() {
               </ResponsiveContainer>
             </div>
           )}
-        </div>
+        </motion.div>
 
         {/* Recharts Line Chart (Risk Trend over Time) */}
-        <div className="glass-card grid-card chart-container-card">
+        <motion.div 
+          className="glass-card grid-card chart-container-card"
+          variants={{
+            hidden: { opacity: 0, y: 15 },
+            show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: 'easeOut' } }
+          }}
+          whileHover={{ scale: 1.02, boxShadow: '0 8px 30px rgba(99, 102, 241, 0.15)', borderColor: 'rgba(99,102,241,0.2)' }}
+        >
           <h3>Population Risk Trend</h3>
           {lineData.length === 0 ? (
             <p className="empty-text">No assessment timeline recorded.</p>
@@ -222,10 +277,17 @@ export default function DoctorDashboard() {
               </ResponsiveContainer>
             </div>
           )}
-        </div>
+        </motion.div>
 
         {/* Critical Alerts List */}
-        <div className="glass-card grid-card critical-list-card">
+        <motion.div 
+          className="glass-card grid-card critical-list-card"
+          variants={{
+            hidden: { opacity: 0, y: 15 },
+            show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: 'easeOut' } }
+          }}
+          whileHover={{ scale: 1.02, boxShadow: '0 8px 30px rgba(99, 102, 241, 0.15)', borderColor: 'rgba(99,102,241,0.2)' }}
+        >
           <div className="card-title-row">
             <AlertTriangle size={18} className="card-icon red" />
             <h3>High Risk Critical Patient Alerts</h3>
@@ -253,10 +315,17 @@ export default function DoctorDashboard() {
               ))
             )}
           </div>
-        </div>
+        </motion.div>
 
         {/* Assigned Patients List Panel */}
-        <div className="glass-card grid-card assigned-list-card">
+        <motion.div 
+          className="glass-card grid-card assigned-list-card"
+          variants={{
+            hidden: { opacity: 0, y: 15 },
+            show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: 'easeOut' } }
+          }}
+          whileHover={{ scale: 1.02, boxShadow: '0 8px 30px rgba(99, 102, 241, 0.15)', borderColor: 'rgba(99,102,241,0.2)' }}
+        >
           <div className="card-title-row">
             <Users size={18} className="card-icon" />
             <h3>Registered Patients Roster</h3>
@@ -289,8 +358,84 @@ export default function DoctorDashboard() {
               })
             )}
           </div>
-        </div>
-      </div>
+        </motion.div>
+
+        {/* Patient Cohorts Scatter Plot */}
+        <motion.div 
+          className="glass-card grid-card chart-container-card full-width" 
+          style={{ gridColumn: 'span 12' }}
+          variants={{
+            hidden: { opacity: 0, y: 15 },
+            show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: 'easeOut' } }
+          }}
+          whileHover={{ scale: 1.02, boxShadow: '0 8px 30px rgba(99, 102, 241, 0.15)', borderColor: 'rgba(99,102,241,0.2)' }}
+        >
+          <h3>Patient Cohort Correlation (Glucose vs. BMI)</h3>
+          {scatterData.length === 0 ? (
+            <p className="empty-text">No patient vitals registered for correlation mapping.</p>
+          ) : (
+            <div className="recharts-wrapper" style={{ height: '320px', marginTop: '10px' }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <ScatterChart margin={{ top: 20, right: 20, bottom: 20, left: -10 }}>
+                  <XAxis 
+                    type="number" 
+                    dataKey="glucose" 
+                    name="Glucose" 
+                    unit=" mg/dL" 
+                    stroke="#94a3b8" 
+                    fontSize={10} 
+                    domain={[60, 220]}
+                  />
+                  <YAxis 
+                    type="number" 
+                    dataKey="bmi" 
+                    name="BMI" 
+                    stroke="#94a3b8" 
+                    fontSize={10} 
+                    domain={[15, 55]}
+                  />
+                  <Tooltip 
+                    cursor={{ strokeDasharray: '3 3' }}
+                    content={({ active, payload }) => {
+                      if (active && payload && payload.length) {
+                        const data = payload[0].payload;
+                        return (
+                          <div style={{
+                            background: 'rgba(15, 23, 42, 0.95)',
+                            border: '1px solid rgba(255,255,255,0.1)',
+                            borderRadius: '8px',
+                            padding: '12px',
+                            color: 'white',
+                            fontSize: '12px',
+                            boxShadow: '0 4px 20px rgba(0,0,0,0.5)'
+                          }}>
+                            <p style={{ margin: '0 0 6px 0', fontWeight: 'bold' }}>{data.name}</p>
+                            <p style={{ margin: '2px 0' }}>Glucose: <strong>{data.glucose} mg/dL</strong></p>
+                            <p style={{ margin: '2px 0' }}>BMI: <strong>{data.bmi}</strong></p>
+                            <p style={{ margin: '2px 0', color: data.risk >= 60 ? '#ef4444' : data.risk >= 30 ? '#fbbf24' : '#10b981' }}>
+                              Risk Score: <strong>{data.risk}% ({data.prediction})</strong>
+                            </p>
+                          </div>
+                        );
+                      }
+                      return null;
+                    }}
+                  />
+                  <Scatter 
+                    name="Patients" 
+                    data={scatterData} 
+                  >
+                    {scatterData.map((entry, index) => {
+                      const color = entry.risk >= 60 ? '#ef4444' : entry.risk >= 30 ? '#fbbf24' : '#10b981';
+                      return <Cell key={`cell-${index}`} fill={color} />;
+                    })}
+                  </Scatter>
+                </ScatterChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+        </motion.div>
+      </motion.div>
     </div>
   );
 }

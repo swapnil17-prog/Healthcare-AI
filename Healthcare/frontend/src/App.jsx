@@ -1,6 +1,7 @@
 import React from 'react';
-import { Routes, Route, Navigate, Link, useNavigate } from 'react-router-dom';
+import { Routes, Route, Navigate, Link, useNavigate, useLocation } from 'react-router-dom';
 import { useSelector, useDispatch } from 'react-redux';
+import { AnimatePresence, motion } from 'framer-motion';
 import { Activity, LogOut, LayoutDashboard, Users, ClipboardCheck, Calendar } from 'lucide-react';
 import { logout } from './redux/authSlice';
 
@@ -10,11 +11,13 @@ import Dashboard from './pages/Dashboard';
 import Patients from './pages/Patients';
 import Predictions from './pages/Predictions';
 import Scheduling from './pages/Scheduling';
+import PatientRecords from './pages/PatientRecords';
 
 export default function App() {
   const { isAuthenticated, user } = useSelector((state) => state.auth);
   const dispatch = useDispatch();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const handleLogout = () => {
     dispatch(logout());
@@ -59,6 +62,13 @@ export default function App() {
             </Link>
           )}
 
+          {user?.role === 'patient' && (
+            <Link to="/records" className="nav-link">
+              <Calendar size={16} />
+              <span>Appointments & History</span>
+            </Link>
+          )}
+
           <Link to="/predictions" className="nav-link">
             <ClipboardCheck size={16} />
             <span>Screen Risk</span>
@@ -79,17 +89,31 @@ export default function App() {
 
       {/* Main Content Render */}
       <main className="main-content">
-        <Routes>
-          <Route path="/dashboard" element={<Dashboard />} />
-          {user?.role !== 'patient' && (
-            <Route path="/patients" element={<Patients />} />
-          )}
-          {user?.role !== 'patient' && (
-            <Route path="/scheduling" element={<Scheduling />} />
-          )}
-          <Route path="/predictions" element={<Predictions />} />
-          <Route path="*" element={<Navigate to="/dashboard" replace />} />
-        </Routes>
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={location.pathname}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.3 }}
+            style={{ width: '100%', height: '100%' }}
+          >
+            <Routes location={location}>
+              <Route path="/dashboard" element={<Dashboard />} />
+              {user?.role !== 'patient' && (
+                <Route path="/patients" element={<Patients />} />
+              )}
+              {user?.role !== 'patient' && (
+                <Route path="/scheduling" element={<Scheduling />} />
+              )}
+              {user?.role === 'patient' && (
+                <Route path="/records" element={<PatientRecords />} />
+              )}
+              <Route path="/predictions" element={<Predictions />} />
+              <Route path="*" element={<Navigate to="/dashboard" replace />} />
+            </Routes>
+          </motion.div>
+        </AnimatePresence>
       </main>
 
       {/* Simple Footer */}

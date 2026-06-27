@@ -55,6 +55,8 @@ export default function TrendChart({ predictions = [] }) {
             strokeWidth={3}
             dot={{ stroke: '#8b5cf6', strokeWidth: 2, r: 4 }}
             activeDot={{ r: 6 }}
+            isAnimationActive={true}
+            animationDuration={1000}
           />
           <Line
             type="monotone"
@@ -62,6 +64,8 @@ export default function TrendChart({ predictions = [] }) {
             stroke="#14b8a6"
             strokeWidth={2}
             dot={{ stroke: '#0d9488', strokeWidth: 1, r: 3 }}
+            isAnimationActive={true}
+            animationDuration={1000}
           />
           <Line
             type="monotone"
@@ -69,6 +73,8 @@ export default function TrendChart({ predictions = [] }) {
             stroke="#ec4899"
             strokeWidth={2}
             dot={{ stroke: '#db2777', strokeWidth: 1, r: 3 }}
+            isAnimationActive={true}
+            animationDuration={1000}
           />
         </LineChart>
       </ResponsiveContainer>

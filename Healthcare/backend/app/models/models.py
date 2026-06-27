@@ -70,6 +70,7 @@ class Prediction(Base):
     patient_id = Column(Integer, ForeignKey("patients.id", ondelete="CASCADE"), nullable=False)
     model_name = Column(String, nullable=False)  # e.g. "Pima Indians Diabetes"
     input_features = Column(JSON, nullable=False)  # Store JSON dictionary of features
+    feature_contributions = Column(JSON, nullable=True)  # Store JSON dictionary of XAI logs
     risk_score = Column(Float, nullable=False)  # Percentage score (0 - 100)
     prediction = Column(String, nullable=False)  # Label, e.g., "High Risk" or "Low Risk"
     created_at = Column(DateTime, default=datetime.datetime.utcnow)

@@ -45,14 +45,15 @@ class MLService:
                 
         # Input matching Pima features selection:
         # [Pregnancies, Glucose, BloodPressure, Insulin, BMI, Age]
-        input_data = [[
+        input_row = [
             float(pregnancies),
             float(glucose),
             float(blood_pressure),
             float(insulin),
             float(bmi),
             float(age)
-        ]]
+        ]
+        input_data = [input_row]
         
         # Run inference
         probabilities = self.model.predict_proba(input_data)[0]
@@ -60,9 +61,24 @@ class MLService:
         
         prediction_label = "High Risk" if risk_score >= 50.0 else "Low Risk"
         
+        # Explain prediction
+        try:
+            contributions = self.model.explain_prediction(input_row)
+        except Exception as e:
+            print(f"Error computing explain_prediction: {e}")
+            contributions = {
+                "pregnancies": 0.0,
+                "glucose": 0.0,
+                "blood_pressure": 0.0,
+                "insulin": 0.0,
+                "bmi": 0.0,
+                "age": 0.0
+            }
+        
         return {
             "risk_score": round(risk_score, 2),
-            "prediction": prediction_label
+            "prediction": prediction_label,
+            "feature_contributions": contributions
         }
 
 # Global singleton service
