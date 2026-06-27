@@ -116,7 +116,7 @@ The frontend is a single-page React app styled with vanilla CSS variables and bu
 | [vite.config.js](file:///c:/Users/LENOVO/OneDrive/Desktop/Healthcare/Healthcare/frontend/vite.config.js) | **Build Config:** Sets up the Vite build tool and links the React compiler plugins. |
 | [main.jsx](file:///c:/Users/LENOVO/OneDrive/Desktop/Healthcare/Healthcare/frontend/src/main.jsx) | **App Mounter:** Mounts the React component tree into the DOM, wrapped in Redux `Provider` and React Router `BrowserRouter` containers. |
 | [index.css](file:///c:/Users/LENOVO/OneDrive/Desktop/Healthcare/Healthcare/frontend/src/index.css) | **Global Design System:** Contains all CSS variables (fonts, HSL color tokens, animations) and defines custom scrollbars, typography rules, glassmorphism layouts, buttons, and badges. |
-| [App.jsx](file:///c:/Users/LENOVO/OneDrive/Desktop/Healthcare/Healthcare/frontend/src/App.jsx) | **Navigation Hub & Layout:** Renders the main glassmorphism navbar header, links tabs based on roles, configures routing paths, and handles session logouts. |
+| [App.jsx](file:///c:/Users/LENOVO/OneDrive/Desktop/Healthcare/Healthcare/frontend/src/App.jsx) | **Navigation Hub & Layout:** Renders the main glassmorphism navbar header, links tabs based on roles, configures routing paths using Framer Motion `AnimatePresence` for page-level slide transitions, and handles session logouts. |
 | [App.css](file:///c:/Users/LENOVO/OneDrive/Desktop/Healthcare/Healthcare/frontend/src/App.css) | **Layout Customizations:** Styles the general layout grids, containers, footers, headers, and backgrounds. |
 
 #### Redux State Subfolder (`frontend/src/redux/`)
@@ -135,10 +135,11 @@ The frontend is a single-page React app styled with vanilla CSS variables and bu
 Each file serves a specific route and has a corresponding CSS file in the same directory:
 *   [Login.jsx](file:///c:/Users/LENOVO/OneDrive/Desktop/Healthcare/Healthcare/frontend/src/pages/Login.jsx) & `Login.css` – Login and registration forms styled with glassmorphism overlays and background gradients.
 *   [Dashboard.jsx](file:///c:/Users/LENOVO/OneDrive/Desktop/Healthcare/Healthcare/frontend/src/pages/Dashboard.jsx) – A routing gatekeeper page that checks the user's role and renders either the `PatientDashboard` or `DoctorDashboard`.
-*   [PatientDashboard.jsx](file:///c:/Users/LENOVO/OneDrive/Desktop/Healthcare/Healthcare/frontend/src/pages/PatientDashboard.jsx) & `PatientDashboard.css` – The patient hub. Includes a radial risk gauge, profile update form, appointment booker, document downloads, trend charts, and the predictions log list.
-*   [DoctorDashboard.jsx](file:///c:/Users/LENOVO/OneDrive/Desktop/Healthcare/Healthcare/frontend/src/pages/DoctorDashboard.jsx) & `DoctorDashboard.css` – The clinician workspace. Displays summary metrics (population KPIs), a pie chart of risk severity distributions, a chart showing average population risk trends, and high-risk alerts.
+*   [PatientDashboard.jsx](file:///c:/Users/LENOVO/OneDrive/Desktop/Healthcare/Healthcare/frontend/src/pages/PatientDashboard.jsx) & `PatientDashboard.css` – The patient hub. Includes an animated radial risk gauge, profile update form, interactive target trackers, document downloads, trend charts, and predictions log list.
+*   [PatientRecords.jsx](file:///c:/Users/LENOVO/OneDrive/Desktop/Healthcare/Healthcare/frontend/src/pages/PatientRecords.jsx) – Extracted portal page separating patient upcoming appointments with inline bookers and complete clinical medical histories.
+*   [DoctorDashboard.jsx](file:///c:/Users/LENOVO/OneDrive/Desktop/Healthcare/Healthcare/frontend/src/pages/DoctorDashboard.jsx) & `DoctorDashboard.css` – The clinician workspace. Displays summary metrics (population KPIs), a pie chart of risk severity distributions, average population risk trends, high-risk critical alerts, and a patient cohort correlation scatterplot.
 *   [Patients.jsx](file:///c:/Users/LENOVO/OneDrive/Desktop/Healthcare/Healthcare/frontend/src/pages/Patients.jsx) & `Patients.css` – The directory roster. Allows doctors and admins to browse patients, view clinical histories, upload PDF/CSV lab results, and run risk scans.
-*   [Predictions.jsx](file:///c:/Users/LENOVO/OneDrive/Desktop/Healthcare/Healthcare/frontend/src/pages/Predictions.jsx) & `Predictions.css` – The screening form. Allows users to submit vital parameters, run the risk model, and display recommendations.
+*   [Predictions.jsx](file:///c:/Users/LENOVO/OneDrive/Desktop/Healthcare/Healthcare/frontend/src/pages/Predictions.jsx) & `Predictions.css` – The screening form. Allows users to submit vital parameters, run the risk model, and display recommendations with tactile submit buttons.
 
 ---
 
@@ -159,6 +160,11 @@ Here is a summary of the features and engineering work implemented in the projec
 11. **Interactive Recharts Visualizations:** Integrated charts displaying vital parameters and population demographics, including a radial gauge, risk distribution pie chart, and historical trend lines.
 12. **Automated Testing Suite:** Created 6 dedicated test scripts to verify the functionality of authentication, CRUD operations, predictions, document uploads, chat response generation, and PDF compilation.
 13. **Explainable AI (XAI) & Hyperparameter Grid Search:** Balanced model training via minority class oversampling and implemented validation grid search tuning. Added signed log-odds contribution calculations to explain ML classifications, which are persisted in the database and rendered as custom bar charts in the frontend screening UI.
+14. **Records & Visits Separation:** Extracted scheduling elements and clinical logs into a dedicated [PatientRecords.jsx](file:///c:/Users/LENOVO/OneDrive/Desktop/Healthcare/Healthcare/frontend/src/pages/PatientRecords.jsx) page, optimizing main dashboard clarity.
+15. **Interactive Monthly Calendar Grid**: Built a month-by-month calendar view inside [Scheduling.jsx](file:///c:/Users/LENOVO/OneDrive/Desktop/Healthcare/Healthcare/frontend/src/pages/Scheduling.jsx) for doctor visit planning, featuring status-colored indicators and detail panels.
+16. **Patient Cohort Scatterplot**: Added a Glucose vs. BMI correlation scatterplot inside [DoctorDashboard.jsx](file:///c:/Users/LENOVO/OneDrive/Desktop/Healthcare/Healthcare/frontend/src/pages/DoctorDashboard.jsx) color-coded by risk severity tiers.
+17. **Health Target Trackers**: Created interactive health goals tracking progress meters using `localStorage` state persistence for patient self-monitoring.
+18. **Polished UI Animations (Framer Motion)**: Added `framer-motion` dependency, implementing route transitions, staggered card entrances, radial loading risk gauges, login panel form toggles, sliding alerts, bouncing typing indicator dots, and tactile button hover/tap scaling actions.
 
 ---
 
