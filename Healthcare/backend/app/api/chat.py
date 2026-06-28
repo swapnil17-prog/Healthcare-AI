@@ -238,7 +238,7 @@ def send_chat_message(
         "strongly encourage the user to consult their healthcare provider / primary doctor for any clinical decisions.\n"
         "2. You MUST NOT diagnose a condition, recommend a specific medication or dosage, or give emergency medical guidance. "
         "Instead, respond with a clear redirect advising them to consult their doctor, and optionally offer to help book an appointment.\n"
-        "3. You MUST include the exact phrases 'I am not a doctor' and 'I cannot provide medical advice' in your response.\n\n"
+        "3. You MUST state the disclaimer ('I am not a doctor' and 'I cannot provide medical advice') ONLY ONCE at the very beginning of the conversation. Never repeat, copy, or prepend this disclaimer in any subsequent messages, follow-up answers, or subsequent turns within the same chat session. Keep all subsequent responses natural, friendly, and direct without repeating medical warnings.\n\n"
         "WHAT YOU WILL ANSWER:\n"
         "1. General health education and wellness info (framed as general info, not personalized medical orders).\n"
         "2. Explaining the patient's own data, trends, and risk numbers (e.g. what is glucose, BMI, and what do their numbers mean based on standard clinical thresholds).\n"
@@ -448,7 +448,7 @@ def send_chat_message_stream(
         "strongly encourage the user to consult their healthcare provider / primary doctor for any clinical decisions.\n"
         "2. You MUST NOT diagnose a condition, recommend a specific medication or dosage, or give emergency medical guidance. "
         "Instead, respond with a clear redirect advising them to consult their doctor, and optionally offer to help book an appointment.\n"
-        "3. You MUST include the exact phrases 'I am not a doctor' and 'I cannot provide medical advice' in your response.\n\n"
+        "3. You MUST state the disclaimer ('I am not a doctor' and 'I cannot provide medical advice') ONLY ONCE at the very beginning of the conversation. Never repeat, copy, or prepend this disclaimer in any subsequent messages, follow-up answers, or subsequent turns within the same chat session. Keep all subsequent responses natural, friendly, and direct without repeating medical warnings.\n\n"
         "WHAT YOU WILL ANSWER:\n"
         "1. General health education and wellness info (framed as general info, not personalized medical orders).\n"
         "2. Explaining the patient's own data, trends, and risk numbers (e.g. what is glucose, BMI, and what do their numbers mean based on standard clinical thresholds).\n"
@@ -606,8 +606,16 @@ def send_chat_message_stream(
 def generate_mock_response(user_message: str, patient_id: Optional[int], db: Session, user_name: str) -> str:
     msg_lower = user_message.lower()
     
-    response = "Hello! I am your Healthcare AI Assistant. Please note that I am not a doctor, I cannot provide medical advice, diagnoses, or treatments, and you should always consult your primary physician for any clinical decisions.\n\n"
+    # Determine if query mentions medical metrics or patient record histories
+    medical_keywords = ["history", "prediction", "risk", "glucose", "insulin", "pressure", "bp", "bmi", "medical", "disease", "treatment"]
+    is_medical = any(kw in msg_lower for kw in medical_keywords)
     
+    disclaimer = "*(Please note: I am not a doctor and I cannot provide medical advice. Consult your physician for any clinical decisions.)*\n\n"
+    
+    response = ""
+    if is_medical:
+        response += disclaimer
+        
     # Check for specific queries
     if "medical history" in msg_lower or "history" in msg_lower:
         if patient_id:
@@ -630,6 +638,6 @@ def generate_mock_response(user_message: str, patient_id: Optional[int], db: Ses
     elif "upload" in msg_lower or "report" in msg_lower:
         response += "To upload a lab report: Go to your Patients tab or patient profile, locate the 'Upload Diagnostics Report' card. Enter the report type, select a PDF or CSV file (under 5MB), and click 'Upload Document'."
     else:
-        response += f"How can I help you today, {user_name}? I can answer general app questions (like how to upload reports or schedule appointments) or explain the medical indicators from your risk prediction results in plain language."
+        response += f"Hello {user_name}! How can I help you today? I can answer general app questions (like how to upload reports or schedule appointments) or explain the medical indicators from your risk prediction results in plain language."
         
     return response
