@@ -83,24 +83,24 @@ def parse_vitals_from_text(text: str) -> dict:
     
     patterns = {
         "glucose": [
-            r"(?:glucose|blood\s*sugar)\s*[:=,\s]\s*([0-9]+(?:\.[0-9]+)?)",
+            r"(?:glucose|blood\s*sugar)(?:\s*\([^)]*\))?\s*[:=,\s]?\s*([0-9]+(?:\.[0-9]+)?)",
         ],
         "insulin": [
-            r"insulin\s*[:=,\s]\s*([0-9]+(?:\.[0-9]+)?)",
+            r"insulin\s*[:=,\s]?\s*([0-9]+(?:\.[0-9]+)?)",
         ],
         "blood_pressure": [
-            r"(?:diastolic)\s*[:=,\s]\s*([0-9]+(?:\.[0-9]+)?)",
-            r"(?:blood\s*pressure|bp)\s*[:=,\s]\s*[0-9]+\s*/\s*([0-9]+)",
-            r"(?:blood\s*pressure|bp)\s*[:=,\s]\s*([0-9]+(?:\.[0-9]+)?)",
+            r"(?:diastolic)(?:\s*bp)?\s*[:=,\s]?\s*([0-9]+(?:\.[0-9]+)?)",
+            r"(?:blood\s*pressure|bp)\s*[:=,\s]?\s*[0-9]+\s*/\s*([0-9]+)",
+            r"(?:blood\s*pressure|bp)\s*[:=,\s]?\s*([0-9]+(?:\.[0-9]+)?)",
         ],
         "bmi": [
-            r"bmi\s*[:=,\s]\s*([0-9]+(?:\.[0-9]+)?)",
+            r"bmi\s*[:=,\s]?\s*([0-9]+(?:\.[0-9]+)?)",
         ],
         "pregnancies": [
-            r"(?:pregnancies|pregnancy)\s*[:=,\s]\s*([0-9]+(?:\.[0-9]+)?)",
+            r"(?:pregnancies|pregnancy)\s*[:=,\s]?\s*([0-9]+(?:\.[0-9]+)?)",
         ],
         "age": [
-            r"age\s*[:=,\s]\s*([0-9]+(?:\.[0-9]+)?)",
+            r"age\s*[:=,\s]?\s*([0-9]+(?:\.[0-9]+)?)",
         ]
     }
     
