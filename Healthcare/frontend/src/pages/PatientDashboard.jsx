@@ -1,9 +1,22 @@
 import React, { useState, useEffect } from 'react';
-import { Download, Activity, RefreshCw, User as UserIcon, FileText } from 'lucide-react';
+import { 
+  Download, 
+  Activity, 
+  RefreshCw, 
+  User as UserIcon, 
+  FileText, 
+  Droplet, 
+  Heart, 
+  Scale, 
+  Calendar,
+  Sparkles
+} from 'lucide-react';
 import { 
   useGetPatientsQuery, 
   useGetPredictionsQuery, 
   useUpdatePatientMutation, 
+  useGetAppointmentsQuery,
+  useGetDoctorsQuery,
   downloadPdfReport
 } from '../services/apiSlice';
 import { motion } from 'framer-motion';
@@ -16,9 +29,10 @@ export default function PatientDashboard() {
   const patient = patientsList?.[0];
 
   const { data: predictions = [], isLoading: isPredsLoading } = useGetPredictionsQuery(patient?.id, { skip: !patient });
+  const { data: appointments = [], isLoading: isApptsLoading } = useGetAppointmentsQuery(undefined, { skip: !patient });
+  const { data: doctors = [], isLoading: isDocsLoading } = useGetDoctorsQuery(undefined, { skip: !patient });
 
   const [updatePatient] = useUpdatePatientMutation();
-
   const [pdfLoading, setPdfLoading] = useState(false);
 
   // Profile Edit states
@@ -98,7 +112,7 @@ export default function PatientDashboard() {
     }
   };
 
-  const loading = isPatientsLoading || (patient && isPredsLoading);
+  const loading = isPatientsLoading || (patient && isPredsLoading) || isApptsLoading || isDocsLoading;
 
   if (loading) {
     return <div className="dashboard-loading-container">Loading Patient Dashboard...</div>;
@@ -107,12 +121,7 @@ export default function PatientDashboard() {
   const latestPrediction = predictions.length > 0 ? predictions[predictions.length - 1] : null;
   const riskScore = latestPrediction ? latestPrediction.risk_score : 0;
   
-  // Calculate stroke dashoffset for gauge
-  const radius = 50;
-  const circumference = 2 * Math.PI * radius;
-  const offset = circumference - (riskScore / 100) * circumference;
-
-  // Extract latest vitals for goal progress trackers
+  // Extract latest vitals for goal progress trackers & Stat Cards
   const latestGlucose = latestPrediction ? latestPrediction.input_features.glucose : null;
   const calculatedBmi = patient?.weight && patient?.height 
     ? (patient.weight / ((patient.height / 100) ** 2)).toFixed(1)
@@ -120,16 +129,50 @@ export default function PatientDashboard() {
   const latestBmi = latestPrediction ? latestPrediction.input_features.bmi : calculatedBmi;
   const latestBp = latestPrediction ? latestPrediction.input_features.blood_pressure : null;
 
+  // Filter patient's appointments & sort them by scheduled date
+  const patientAppts = appointments
+    .filter(a => a.patient_id === patient?.id)
+    .sort((a, b) => new Date(a.scheduled_at) - new Date(b.scheduled_at))
+    .slice(0, 3); // Get top 3
+
+  // Classify Vitals status
+  const getBmiStatus = (bmiValue) => {
+    if (!bmiValue) return { text: 'No Data', class: 'badge-info' };
+    const num = parseFloat(bmiValue);
+    if (num < 18.5) return { text: 'Underweight', class: 'badge-warning' };
+    if (num < 25) return { text: 'Normal', class: 'badge-success' };
+    if (num < 30) return { text: 'Overweight', class: 'badge-warning' };
+    return { text: 'Obese', class: 'badge-danger' };
+  };
+
+  const getGlucoseStatus = (glucValue) => {
+    if (!glucValue) return { text: 'No Data', class: 'badge-info' };
+    const num = parseFloat(glucValue);
+    if (num < 100) return { text: 'Normal', class: 'badge-success' };
+    if (num < 126) return { text: 'Elevated', class: 'badge-warning' };
+    return { text: 'High', class: 'badge-danger' };
+  };
+
+  const getBpStatus = (bpValue) => {
+    if (!bpValue) return { text: 'No Data', class: 'badge-info' };
+    const num = parseFloat(bpValue);
+    if (num < 80) return { text: 'Normal', class: 'badge-success' };
+    if (num < 90) return { text: 'Elevated', class: 'badge-warning' };
+    return { text: 'High', class: 'badge-danger' };
+  };
+
+  const bmiStatus = getBmiStatus(latestBmi);
+  const glucoseStatus = getGlucoseStatus(latestGlucose);
+  const bpStatus = getBpStatus(latestBp);
+
   return (
     <div className="patient-dashboard-container">
-      <div className="bg-gradient-radial"></div>
-
       {/* Header Banner */}
-      <div className="dashboard-header glass-card">
+      <div className="dashboard-header-panel">
         <div className="header-greeting">
           <span className="welcome-tag">PATIENT CENTER</span>
-          <h2>Welcome back, {patient?.user.name}</h2>
-          <p>Monitor your clinical metrics, prediction history, and schedule details.</p>
+          <h2>Welcome back, {patient?.user.name}! 👋</h2>
+          <p>Here's your clinical overview, prediction trends, and healthcare details.</p>
         </div>
         <button onClick={handleDownloadPDF} className="btn btn-primary export-pdf-btn" disabled={pdfLoading}>
           {pdfLoading ? (
@@ -140,76 +183,133 @@ export default function PatientDashboard() {
           ) : (
             <>
               <Download size={16} />
-              <span>Export Clinical PDF</span>
+              <span>Download Report</span>
             </>
           )}
         </button>
       </div>
 
-      <motion.div 
-        className="dashboard-grid"
-        variants={{
-          hidden: { opacity: 0 },
-          show: { opacity: 1, transition: { staggerChildren: 0.08 } }
-        }}
-        initial="hidden"
-        animate="show"
-      >
-        {/* Risk Score Widget */}
-        <motion.div 
-          className="glass-card grid-card score-card"
-          variants={{
-            hidden: { opacity: 0, y: 15 },
-            show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: 'easeOut' } }
-          }}
-          whileHover={{ scale: 1.02, boxShadow: '0 8px 30px rgba(99, 102, 241, 0.15)', borderColor: 'rgba(99,102,241,0.2)' }}
-        >
-          <h3>Diabetes Risk Assessment</h3>
-          <div className="gauge-outer">
-            <svg className="gauge-svg" width="140" height="140">
-              <circle className="gauge-bg" cx="70" cy="70" r={radius} />
-              <motion.circle
-                className={`gauge-bar ${riskScore >= 50 ? 'high-risk' : 'low-risk'}`}
-                cx="70"
-                cy="70"
-                r={radius}
-                strokeDasharray={circumference}
-                initial={{ strokeDashoffset: circumference }}
-                animate={{ strokeDashoffset: offset }}
-                transition={{ duration: 1, ease: 'easeOut' }}
-              />
-            </svg>
-            <div className="gauge-info">
-              <span className="gauge-val">{riskScore}%</span>
-              <span className="gauge-label">{latestPrediction?.prediction || 'No Scan'}</span>
-            </div>
+      {/* STAT CARDS ROW */}
+      <div className="stat-cards-grid">
+        {/* Card 1: Risk Score */}
+        <div className="white-stat-card">
+          <div className="stat-card-icon-wrapper accent-light">
+            <Activity className="stat-card-icon" size={24} />
           </div>
-          <p className="score-desc">
-            {latestPrediction 
-              ? `Your latest assessment was compiled on ${new Date(latestPrediction.created_at).toLocaleDateString()}.`
-              : 'You have not completed a diabetes risk screening yet.'}
-          </p>
-        </motion.div>
+          <div className="stat-card-info">
+            <span className="stat-card-label">Risk Score</span>
+            <h3 className="stat-card-value">{riskScore}%</h3>
+            <span className={`badge ${riskScore >= 60 ? 'badge-danger' : riskScore >= 30 ? 'badge-warning' : 'badge-success'}`}>
+              {latestPrediction?.prediction || 'No Scan'}
+            </span>
+          </div>
+        </div>
 
-        {/* Demographics Summary */}
-        <motion.div 
-          className="glass-card grid-card info-card"
-          variants={{
-            hidden: { opacity: 0, y: 15 },
-            show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: 'easeOut' } }
-          }}
-          whileHover={{ scale: 1.02, boxShadow: '0 8px 30px rgba(99, 102, 241, 0.15)', borderColor: 'rgba(99,102,241,0.2)' }}
-        >
-          <div className="card-title-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+        {/* Card 2: BMI */}
+        <div className="white-stat-card">
+          <div className="stat-card-icon-wrapper success-light">
+            <Scale className="stat-card-icon" size={24} />
+          </div>
+          <div className="stat-card-info">
+            <span className="stat-card-label">BMI</span>
+            <h3 className="stat-card-value">{latestBmi || 'N/A'}</h3>
+            <span className={`badge ${bmiStatus.class}`}>
+              {bmiStatus.text}
+            </span>
+          </div>
+        </div>
+
+        {/* Card 3: Glucose */}
+        <div className="white-stat-card">
+          <div className="stat-card-icon-wrapper danger-light">
+            <Droplet className="stat-card-icon" size={24} />
+          </div>
+          <div className="stat-card-info">
+            <span className="stat-card-label">Glucose</span>
+            <h3 className="stat-card-value">{latestGlucose ? `${latestGlucose} mg/dL` : 'N/A'}</h3>
+            <span className={`badge ${glucoseStatus.class}`}>
+              {glucoseStatus.text}
+            </span>
+          </div>
+        </div>
+
+        {/* Card 4: Blood Pressure */}
+        <div className="white-stat-card">
+          <div className="stat-card-icon-wrapper warning-light">
+            <Heart className="stat-card-icon" size={24} />
+          </div>
+          <div className="stat-card-info">
+            <span className="stat-card-label">Blood Pressure</span>
+            <h3 className="stat-card-value">{latestBp ? `${latestBp} mmHg` : 'N/A'} (Dia)</h3>
+            <span className={`badge ${bpStatus.class}`}>
+              {bpStatus.text}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* DASHBOARD CONTENT GRID */}
+      <div className="dashboard-content-split">
+        {/* Health Trend (Left) */}
+        <div className="glass-card trends-panel">
+          <div className="card-title-row">
+            <Activity size={18} className="card-icon" style={{ color: 'var(--accent)' }} />
+            <h3>Health Trend</h3>
+          </div>
+          <TrendChart predictions={predictions} />
+        </div>
+
+        {/* Recent Appointments (Right) */}
+        <div className="glass-card appointments-panel">
+          <div className="card-title-row">
+            <Calendar size={18} className="card-icon" style={{ color: 'var(--accent)' }} />
+            <h3>Recent Appointments</h3>
+          </div>
+          <div className="appointments-mini-list">
+            {patientAppts.length === 0 ? (
+              <p className="empty-text">No scheduled appointments.</p>
+            ) : (
+              patientAppts.map((appt) => {
+                const doctorObj = doctors.find((d) => d.id === appt.doctor_id);
+                return (
+                  <div key={appt.id} className="appointment-mini-item">
+                    <div className="appt-meta-info">
+                      <h4 className="appt-doc-name">{doctorObj?.name || `Doctor ID: ${appt.doctor_id}`}</h4>
+                      <span className="appt-specialty">General Practitioner</span>
+                      <span className="appt-date-sub">
+                        {new Date(appt.scheduled_at).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })} at {new Date(appt.scheduled_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    </div>
+                    <span className={`badge ${
+                      appt.status === 'Completed' ? 'badge-success' :
+                      appt.status === 'Accepted' ? 'badge-info' :
+                      appt.status === 'Rescheduled' ? 'badge-warning' :
+                      appt.status === 'Scheduled' ? 'badge-pending' : 'badge-danger'
+                    }`}>
+                      {appt.status}
+                    </span>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* DETAILS GRID */}
+      <div className="dashboard-details-grid">
+        {/* Health Profile Card */}
+        <div className="glass-card profile-card-inner">
+          <div className="card-title-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <UserIcon size={18} className="card-icon" />
+              <UserIcon size={18} className="card-icon" style={{ color: 'var(--accent)' }} />
               <h3>Your Health Profile</h3>
             </div>
             {!isEditing && (
               <button 
                 onClick={() => setIsEditing(true)} 
                 className="btn btn-secondary" 
-                style={{ padding: '6px 12px', fontSize: '12px', height: 'auto', minHeight: 'unset' }}
+                style={{ padding: '6px 12px', fontSize: '12px' }}
               >
                 Edit Profile
               </button>
@@ -252,7 +352,7 @@ export default function PatientDashboard() {
                 <label className="input-label">Address</label>
                 <input type="text" className="input-field" value={address} onChange={(e) => setAddress(e.target.value)} placeholder="123 Health Ave" />
               </div>
-              <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
+              <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
                 <button type="submit" className="btn btn-primary" style={{ flex: 1 }}>Save Changes</button>
                 <button type="button" className="btn btn-secondary" onClick={() => {
                   if (patient) {
@@ -269,7 +369,7 @@ export default function PatientDashboard() {
               </div>
             </form>
           ) : (
-            <>
+            <div className="profile-details-display">
               <div className="metrics-grid">
                 <div className="metric-box">
                   <span className="metric-label">Age</span>
@@ -293,39 +393,28 @@ export default function PatientDashboard() {
                 </div>
                 <div className="metric-box">
                   <span className="metric-label">BMI</span>
-                  <span className="metric-value">
-                    {patient?.weight && patient?.height 
-                      ? (patient.weight / ((patient.height / 100) ** 2)).toFixed(1)
-                      : 'N/A'}
-                  </span>
+                  <span className="metric-value">{calculatedBmi || 'N/A'}</span>
                 </div>
               </div>
               <div className="demographics-address">
                 <span><strong>Address:</strong> {patient?.address || 'N/A'}</span>
                 <span><strong>Phone:</strong> {patient?.phone || 'N/A'}</span>
               </div>
-            </>
+            </div>
           )}
-        </motion.div>
+        </div>
 
-        {/* Health Target Goals Tracker */}
-        <motion.div 
-          className="glass-card grid-card goals-card"
-          variants={{
-            hidden: { opacity: 0, y: 15 },
-            show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: 'easeOut' } }
-          }}
-          whileHover={{ scale: 1.02, boxShadow: '0 8px 30px rgba(99, 102, 241, 0.15)', borderColor: 'rgba(99,102,241,0.2)' }}
-        >
+        {/* Health Goals Card */}
+        <div className="glass-card goals-card-inner">
           <div className="card-title-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <FileText size={18} className="card-icon" />
+              <FileText size={18} className="card-icon" style={{ color: 'var(--accent)' }} />
               <h3>Health Target Goals</h3>
             </div>
             <button 
               onClick={() => setIsEditingGoals(!isEditingGoals)} 
               className="btn btn-secondary" 
-              style={{ padding: '4px 10px', fontSize: '11px', height: 'auto', minHeight: 'unset' }}
+              style={{ padding: '6px 12px', fontSize: '12px' }}
             >
               {isEditingGoals ? 'Cancel' : 'Set Targets'}
             </button>
@@ -341,7 +430,7 @@ export default function PatientDashboard() {
                   value={targetGlucose} 
                   onChange={(e) => setTargetGlucose(e.target.value)} 
                   required 
-                  style={{ padding: '6px 12px', fontSize: '12px' }}
+                  style={{ padding: '8px 12px', fontSize: '13px' }}
                 />
               </div>
               <div className="form-group">
@@ -353,7 +442,7 @@ export default function PatientDashboard() {
                   value={targetBmi} 
                   onChange={(e) => setTargetBmi(e.target.value)} 
                   required 
-                  style={{ padding: '6px 12px', fontSize: '12px' }}
+                  style={{ padding: '8px 12px', fontSize: '13px' }}
                 />
               </div>
               <div className="form-group">
@@ -364,10 +453,10 @@ export default function PatientDashboard() {
                   value={targetBp} 
                   onChange={(e) => setTargetBp(e.target.value)} 
                   required 
-                  style={{ padding: '6px 12px', fontSize: '12px' }}
+                  style={{ padding: '8px 12px', fontSize: '13px' }}
                 />
               </div>
-              <button type="submit" className="btn btn-primary" style={{ padding: '8px', fontSize: '12px' }}>Save Goals</button>
+              <button type="submit" className="btn btn-primary" style={{ padding: '10px', fontSize: '13px' }}>Save Goals</button>
             </form>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', flex: 1, justifyContent: 'center', marginTop: '10px' }}>
@@ -391,80 +480,83 @@ export default function PatientDashboard() {
               />
             </div>
           )}
-        </motion.div>
+        </div>
+      </div>
 
-        {/* Assessment Metric Trends Chart */}
-        <motion.div 
-          className="glass-card grid-card full-width trends-chart-card"
-          variants={{
-            hidden: { opacity: 0, y: 15 },
-            show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: 'easeOut' } }
-          }}
-          whileHover={{ scale: 1.02, boxShadow: '0 8px 30px rgba(99, 102, 241, 0.15)', borderColor: 'rgba(99,102,241,0.2)' }}
-        >
-          <div className="card-title-row">
-            <Activity size={18} className="card-icon" />
-            <h3>Assessment Metric Trends</h3>
-          </div>
-          <TrendChart predictions={predictions} />
-        </motion.div>
+      {/* HEALTH INSIGHTS CARD */}
+      <div className="glass-card insights-full-card" style={{ marginTop: '24px' }}>
+        <div className="card-title-row">
+          <Sparkles size={18} className="card-icon" style={{ color: 'var(--accent)' }} />
+          <h3>Health Insights & Clinical Recommendations</h3>
+        </div>
+        <div className="insights-body">
+          {latestPrediction?.recommendations && latestPrediction.recommendations.length > 0 ? (
+            <div className="insights-container">
+              <p className="insight-intro">Based on your recent lab test values and risk assessment, our clinical decision rules suggest the following options:</p>
+              <ul className="insights-bullets">
+                {latestPrediction.recommendations.map((rec, i) => (
+                  <li key={i} className="insight-bullet-item">
+                    <strong>Actionable Recommendation:</strong> {rec}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : (
+            <div className="insights-empty">
+              <p>No diagnostics assessments parsed yet. Run a diabetes risk check or upload a lab summary report to generate personalized health recommendations.</p>
+            </div>
+          )}
+        </div>
+      </div>
 
-        {/* Prediction History Log */}
-        <motion.div 
-          className="glass-card grid-card full-width predictions-log-card"
-          variants={{
-            hidden: { opacity: 0, y: 15 },
-            show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: 'easeOut' } }
-          }}
-          whileHover={{ scale: 1.02, boxShadow: '0 8px 30px rgba(99, 102, 241, 0.15)', borderColor: 'rgba(99,102,241,0.2)' }}
-        >
-          <div className="card-title-row">
-            <Activity size={18} className="card-icon" />
-            <h3>Diabetes Risk Assessment Log</h3>
-          </div>
-          <div className="table-wrapper">
-            {predictions.length === 0 ? (
-              <p className="empty-text">No risk logs compiled.</p>
-            ) : (
-              <table className="dashboard-table">
-                <thead>
-                  <tr>
-                    <th>Date Run</th>
-                    <th>Model Name</th>
-                    <th>Glucose</th>
-                    <th>Insulin</th>
-                    <th>BMI</th>
-                    <th>BP</th>
-                    <th>Risk Score</th>
-                    <th>Category</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {predictions.map((p) => {
-                    const feat = p.input_features;
-                    return (
-                      <tr key={p.id}>
-                        <td>{new Date(p.created_at).toLocaleDateString()}</td>
-                        <td>{p.model_name}</td>
-                        <td>{feat.glucose} mg/dL</td>
-                        <td>{feat.insulin} mu U/ml</td>
-                        <td>{feat.bmi}</td>
-                        <td>{feat.blood_pressure} mm Hg</td>
-                        <td><strong>{p.risk_score}%</strong></td>
-                        <td>
-                          <span className={`badge ${p.prediction === 'High Risk' ? 'badge-danger' : 'badge-success'}`}>
-                            {p.prediction}
-                          </span>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            )}
-          </div>
-        </motion.div>
-      </motion.div>
+      {/* Diabetes Risk Assessment Log */}
+      <div className="glass-card predictions-log-card-inner" style={{ marginTop: '24px' }}>
+        <div className="card-title-row">
+          <FileText size={18} className="card-icon" style={{ color: 'var(--accent)' }} />
+          <h3>Diabetes Risk Assessment Log</h3>
+        </div>
+        <div className="table-wrapper">
+          {predictions.length === 0 ? (
+            <p className="empty-text">No risk logs compiled.</p>
+          ) : (
+            <table className="dashboard-table">
+              <thead>
+                <tr>
+                  <th>Date Run</th>
+                  <th>Model Name</th>
+                  <th>Glucose</th>
+                  <th>Insulin</th>
+                  <th>BMI</th>
+                  <th>BP</th>
+                  <th>Risk Score</th>
+                  <th>Category</th>
+                </tr>
+              </thead>
+              <tbody>
+                {predictions.map((p) => {
+                  const feat = p.input_features;
+                  return (
+                    <tr key={p.id}>
+                      <td>{new Date(p.created_at).toLocaleDateString()}</td>
+                      <td>{p.model_name}</td>
+                      <td>{feat.glucose} mg/dL</td>
+                      <td>{feat.insulin} mu U/ml</td>
+                      <td>{feat.bmi}</td>
+                      <td>{feat.blood_pressure} mm Hg</td>
+                      <td><strong>{p.risk_score}%</strong></td>
+                      <td>
+                        <span className={`badge ${p.prediction === 'High Risk' ? 'badge-danger' : 'badge-success'}`}>
+                          {p.prediction}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </div>
 
       {/* Floating Chat Widget */}
       <ChatWidget />
@@ -475,7 +567,7 @@ export default function PatientDashboard() {
 function GoalProgressBar({ name, current, target, unit }) {
   if (current === null || current === undefined) {
     return (
-      <div style={{ fontSize: '12.5px', color: 'hsl(var(--text-muted))' }}>
+      <div style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
         <strong>{name}:</strong> No vitals log. Submit screening parameters.
       </div>
     );
@@ -486,8 +578,6 @@ function GoalProgressBar({ name, current, target, unit }) {
   const diff = curVal - tarVal;
   const isAchieved = curVal <= tarVal;
   
-  // Compute percentage value to render progress bar.
-  // If achieved, progress is 100%. If exceeds, progress decreases.
   let percentage = 100;
   if (!isAchieved) {
     percentage = Math.max(10, Math.round((1 - (diff / tarVal)) * 100));
@@ -495,33 +585,33 @@ function GoalProgressBar({ name, current, target, unit }) {
   
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12.5px', alignItems: 'baseline' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', alignItems: 'baseline' }}>
         <div>
-          <span style={{ color: 'white', fontWeight: 600 }}>{name}</span>
-          <span style={{ fontSize: '11px', color: 'hsl(var(--text-muted))', marginLeft: '6px' }}>
+          <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{name}</span>
+          <span style={{ fontSize: '11px', color: 'var(--text-secondary)', marginLeft: '6px' }}>
             (Target: {target}{unit})
           </span>
         </div>
-        <span style={{ fontWeight: '700', color: isAchieved ? '#34d399' : '#f87171' }}>
+        <span style={{ fontWeight: '700', color: isAchieved ? 'var(--success)' : 'var(--danger)' }}>
           {current}{unit}
         </span>
       </div>
       
-      <div style={{ width: '100%', height: '8px', background: 'rgba(255, 255, 255, 0.05)', borderRadius: '4px', overflow: 'hidden' }}>
+      <div style={{ width: '100%', height: '8px', background: 'var(--bg-primary)', borderRadius: '4px', overflow: 'hidden', border: '1px solid var(--border)' }}>
         <div 
           style={{ 
             width: `${percentage}%`, 
             height: '100%', 
             background: isAchieved 
-              ? 'linear-gradient(90deg, #059669 0%, #34d399 100%)' 
-              : 'linear-gradient(90deg, #d97706 0%, #f87171 100%)',
+              ? 'linear-gradient(90deg, #05CD99 0%, #34d399 100%)' 
+              : 'linear-gradient(90deg, var(--warning) 0%, var(--danger) 100%)',
             borderRadius: '4px',
             transition: 'width 0.5s ease-in-out'
           }} 
         />
       </div>
       
-      <span style={{ fontSize: '11px', color: isAchieved ? '#34d399' : 'hsl(var(--text-muted))' }}>
+      <span style={{ fontSize: '11px', color: isAchieved ? 'var(--success)' : 'var(--text-secondary)' }}>
         {isAchieved ? '🎉 Goal Achieved!' : `Exceeds target goal by +${diff.toFixed(1)}${unit}`}
       </span>
     </div>

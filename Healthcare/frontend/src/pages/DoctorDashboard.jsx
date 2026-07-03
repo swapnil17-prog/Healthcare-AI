@@ -1,7 +1,30 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Users, AlertTriangle, TrendingUp, ShieldCheck, ArrowRight } from 'lucide-react';
-import { ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line, XAxis, YAxis, Tooltip, Legend, ScatterChart, Scatter } from 'recharts';
+import { 
+  Users, 
+  AlertTriangle, 
+  TrendingUp, 
+  ShieldCheck, 
+  ArrowRight,
+  Calendar,
+  FileText,
+  Activity,
+  Award
+} from 'lucide-react';
+import { 
+  ResponsiveContainer, 
+  PieChart, 
+  Pie, 
+  Cell, 
+  BarChart, 
+  Bar, 
+  XAxis, 
+  YAxis, 
+  Tooltip, 
+  Legend, 
+  ScatterChart, 
+  Scatter 
+} from 'recharts';
 import { motion } from 'framer-motion';
 import { api } from '../services/api';
 import './DoctorDashboard.css';
@@ -9,6 +32,8 @@ import './DoctorDashboard.css';
 export default function DoctorDashboard() {
   const [patients, setPatients] = useState([]);
   const [predictionsMap, setPredictionsMap] = useState({});
+  const [appointments, setAppointments] = useState([]);
+  const [reportsMap, setReportsMap] = useState({});
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
@@ -22,8 +47,12 @@ export default function DoctorDashboard() {
       const patientList = await api.getPatients();
       setPatients(patientList);
 
-      // Fetch predictions for each patient to build charts and metrics
+      const apptList = await api.getAppointments();
+      setAppointments(apptList);
+
+      // Fetch predictions and reports for each patient in parallel
       const predsMap = {};
+      const repsMap = {};
       await Promise.all(
         patientList.map(async (p) => {
           try {
@@ -32,9 +61,16 @@ export default function DoctorDashboard() {
           } catch (e) {
             console.error(`Failed to load predictions for patient ${p.id}`, e);
           }
+          try {
+            const reps = await api.getReports(p.id);
+            repsMap[p.id] = reps;
+          } catch (e) {
+            console.error(`Failed to load reports for patient ${p.id}`, e);
+          }
         })
       );
       setPredictionsMap(predsMap);
+      setReportsMap(repsMap);
     } catch (e) {
       console.error('Failed to load doctor dashboard stats', e);
     } finally {
@@ -63,37 +99,28 @@ export default function DoctorDashboard() {
     });
 
     return [
-      { name: 'Low Risk (<30%)', value: low, color: '#10b981' },
-      { name: 'Moderate Risk (30-60%)', value: moderate, color: '#fbbf24' },
-      { name: 'High Risk (>60%)', value: high, color: '#ef4444' },
-      { name: 'No Assessments', value: noScan, color: '#64748b' }
-    ].filter(item => item.value > 0); // Don't show 0-count slices
+      { name: 'Low Risk (<30%)', value: low, color: '#05CD99' },
+      { name: 'Medium Risk (30-60%)', value: moderate, color: '#FFB547' },
+      { name: 'High Risk (>60%)', value: high, color: '#EE5D50' },
+      { name: 'No Assessments', value: noScan, color: '#A3AED0' }
+    ].filter(item => item.value > 0);
   };
 
-  // Process data for Risk Trend Line Chart (Risk scores by date)
-  const getLineData = () => {
-    const datesMap = {};
+  // Process data for Monthly Consultations Bar Chart
+  const getMonthlyApptsData = () => {
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const counts = Array(12).fill(0);
     
-    // Collect all predictions
-    Object.values(predictionsMap).forEach((preds) => {
-      preds.forEach((p) => {
-        const dateStr = new Date(p.created_at).toLocaleDateString([], { month: 'short', day: 'numeric' });
-        if (!datesMap[dateStr]) {
-          datesMap[dateStr] = { sum: 0, count: 0 };
-        }
-        datesMap[dateStr].sum += p.risk_score;
-        datesMap[dateStr].count += 1;
-      });
+    appointments.forEach(a => {
+      const date = new Date(a.scheduled_at);
+      // Group for current year or last 6 months
+      counts[date.getMonth()]++;
     });
-
-    // Format for Recharts
-    const data = Object.keys(datesMap).map((date) => ({
-      date,
-      'Avg Risk Score (%)': parseFloat((datesMap[date].sum / datesMap[date].count).toFixed(1))
-    }));
-
-    // Sort by simple date aggregation or return
-    return data.slice(-10); // Show last 10 dates
+    
+    return months.map((m, idx) => ({
+      month: m,
+      'Consultations': counts[idx]
+    })).filter((item, idx) => idx <= new Date().getMonth() || item.Consultations > 0);
   };
 
   // Filter Critical Patients (Risk Score > 70%)
@@ -121,8 +148,47 @@ export default function DoctorDashboard() {
   }
 
   const pieData = getPieData();
-  const lineData = getLineData();
+  const monthlyApptsData = getMonthlyApptsData();
   const criticalPatients = getCriticalPatients();
+
+  // Metrics computation for cards
+  const totalPatients = patients.length;
+  const highRiskPatientsCount = patients.filter(p => {
+    const preds = predictionsMap[p.id] || [];
+    const latest = preds[preds.length - 1];
+    return latest && latest.risk_score >= 60;
+  }).length;
+
+  const todayStr = new Date().toDateString();
+  const appointmentsToday = appointments.filter(a => new Date(a.scheduled_at).toDateString() === todayStr).length;
+
+  let totalReports = 0;
+  Object.values(reportsMap).forEach(reps => {
+    totalReports += reps.length;
+  });
+
+  // Calculate conditions stats for population bar
+  let diabetesCount = 0;
+  let bpCount = 0;
+  let obesityCount = 0;
+  let scannedCount = 0;
+
+  patients.forEach((p) => {
+    const preds = predictionsMap[p.id] || [];
+    const latest = preds[preds.length - 1];
+    if (latest) {
+      scannedCount++;
+      if (latest.input_features.glucose >= 126 || latest.risk_score >= 60) diabetesCount++;
+      if (latest.input_features.blood_pressure >= 85) bpCount++;
+      if (latest.input_features.bmi >= 30) obesityCount++;
+    }
+  });
+
+  const conditionsList = [
+    { name: 'Diabetes Risk / High Glucose', count: diabetesCount, color: '#5B6BF8' },
+    { name: 'Hypertension (High BP)', count: bpCount, color: '#FFB547' },
+    { name: 'Obesity (BMI >= 30)', count: obesityCount, color: '#EE5D50' }
+  ];
 
   const scatterData = (() => {
     const data = [];
@@ -144,68 +210,70 @@ export default function DoctorDashboard() {
 
   return (
     <div className="doctor-dashboard-container">
-      <div className="bg-gradient-radial"></div>
-
       {/* Greeting Banner */}
-      <div className="dashboard-header glass-card">
+      <div className="dashboard-header-panel">
         <div className="header-greeting">
           <span className="welcome-tag">DOCTOR CLINICAL PANEL</span>
           <h2>Clinical Management Portal</h2>
-          <p>Review population risk statistics, analyze trends, and manage critical care profiles.</p>
+          <p>Review population risk statistics, analyze trends, and manage care profiles.</p>
         </div>
       </div>
 
-      {/* Main Grid */}
-      <motion.div 
-        className="dashboard-grid"
-        variants={{
-          hidden: { opacity: 0 },
-          show: { opacity: 1, transition: { staggerChildren: 0.08 } }
-        }}
-        initial="hidden"
-        animate="show"
-      >
-        {/* KPI Panel Cards */}
-        <motion.div 
-          className="glass-card kpi-card"
-          variants={{
-            hidden: { opacity: 0, y: 15 },
-            show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: 'easeOut' } }
-          }}
-          whileHover={{ scale: 1.02, boxShadow: '0 8px 30px rgba(99, 102, 241, 0.15)', borderColor: 'rgba(99,102,241,0.2)' }}
-        >
-          <Users className="kpi-icon blue" size={24} />
-          <div className="kpi-info">
-            <span className="kpi-val">{patients.length}</span>
-            <span className="kpi-label">Registered Patients</span>
+      {/* KPI Panel Cards */}
+      <div className="doctor-kpi-grid">
+        {/* KPI 1: Total Patients */}
+        <div className="white-kpi-card">
+          <div className="kpi-icon-wrapper blue-light">
+            <Users className="kpi-icon" size={24} />
           </div>
-        </motion.div>
-
-        <motion.div 
-          className="glass-card kpi-card"
-          variants={{
-            hidden: { opacity: 0, y: 15 },
-            show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: 'easeOut' } }
-          }}
-          whileHover={{ scale: 1.02, boxShadow: '0 8px 30px rgba(99, 102, 241, 0.15)', borderColor: 'rgba(99,102,241,0.2)' }}
-        >
-          <AlertTriangle className="kpi-icon red" size={24} />
-          <div className="kpi-info">
-            <span className="kpi-val">{criticalPatients.length}</span>
-            <span className="kpi-label">Critical Patients</span>
+          <div className="kpi-card-info">
+            <h3 className="kpi-value">{totalPatients}</h3>
+            <span className="kpi-label">Total Patients</span>
           </div>
-        </motion.div>
+        </div>
 
-        {/* Recharts Pie Chart (Risk Distribution) */}
-        <motion.div 
-          className="glass-card grid-card chart-container-card"
-          variants={{
-            hidden: { opacity: 0, y: 15 },
-            show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: 'easeOut' } }
-          }}
-          whileHover={{ scale: 1.02, boxShadow: '0 8px 30px rgba(99, 102, 241, 0.15)', borderColor: 'rgba(99,102,241,0.2)' }}
-        >
-          <h3>Risk Severity Distribution</h3>
+        {/* KPI 2: High Risk */}
+        <div className="white-kpi-card">
+          <div className="kpi-icon-wrapper danger-light">
+            <AlertTriangle className="kpi-icon" size={24} />
+          </div>
+          <div className="kpi-card-info">
+            <h3 className="kpi-value">{highRiskPatientsCount}</h3>
+            <span className="kpi-label">High-Risk Patients</span>
+          </div>
+        </div>
+
+        {/* KPI 3: Appointments Today */}
+        <div className="white-kpi-card">
+          <div className="kpi-icon-wrapper accent-light">
+            <Calendar className="kpi-icon" size={24} />
+          </div>
+          <div className="kpi-card-info">
+            <h3 className="kpi-value">{appointmentsToday}</h3>
+            <span className="kpi-label">Appointments Today</span>
+          </div>
+        </div>
+
+        {/* KPI 4: Reports Pending */}
+        <div className="white-kpi-card">
+          <div className="kpi-icon-wrapper warning-light">
+            <FileText className="kpi-icon" size={24} />
+          </div>
+          <div className="kpi-card-info">
+            <h3 className="kpi-value">{totalReports}</h3>
+            <span className="kpi-label">Reports Pending</span>
+          </div>
+        </div>
+      </div>
+
+      {/* CHARTS CONTAINER GRID */}
+      <div className="doctor-charts-grid">
+        {/* Pie Chart: Risk Distribution */}
+        <div className="glass-card doctor-chart-card">
+          <div className="card-title-row">
+            <Activity size={18} className="card-icon" style={{ color: 'var(--accent)' }} />
+            <h3>Risk Severity Distribution</h3>
+          </div>
           {pieData.length === 0 ? (
             <p className="empty-text">No patient data available.</p>
           ) : (
@@ -216,7 +284,7 @@ export default function DoctorDashboard() {
                     data={pieData}
                     cx="50%"
                     cy="50%"
-                    innerRadius={50}
+                    innerRadius={55}
                     outerRadius={80}
                     paddingAngle={4}
                     dataKey="value"
@@ -227,215 +295,252 @@ export default function DoctorDashboard() {
                   </Pie>
                   <Tooltip
                     contentStyle={{
-                      background: 'rgba(15, 23, 42, 0.95)',
-                      border: '1px solid rgba(255,255,255,0.1)',
+                      background: 'var(--bg-card)',
+                      border: '1px solid var(--border)',
                       borderRadius: '8px',
-                      color: 'white'
+                      color: 'var(--text-primary)',
+                      fontFamily: 'var(--font-body)',
+                      fontSize: '12px',
+                      boxShadow: 'var(--shadow-md)'
                     }}
                   />
-                  <Legend verticalAlign="bottom" height={36} iconType="circle" />
+                  <Legend verticalAlign="bottom" height={36} iconType="circle" wrapperStyle={{ fontSize: '11px', color: 'var(--text-secondary)' }} />
                 </PieChart>
               </ResponsiveContainer>
             </div>
           )}
-        </motion.div>
+        </div>
 
-        {/* Recharts Line Chart (Risk Trend over Time) */}
-        <motion.div 
-          className="glass-card grid-card chart-container-card"
-          variants={{
-            hidden: { opacity: 0, y: 15 },
-            show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: 'easeOut' } }
-          }}
-          whileHover={{ scale: 1.02, boxShadow: '0 8px 30px rgba(99, 102, 241, 0.15)', borderColor: 'rgba(99,102,241,0.2)' }}
-        >
-          <h3>Population Risk Trend</h3>
-          {lineData.length === 0 ? (
-            <p className="empty-text">No assessment timeline recorded.</p>
+        {/* Bar Chart: Monthly Consultations */}
+        <div className="glass-card doctor-chart-card">
+          <div className="card-title-row">
+            <TrendingUp size={18} className="card-icon" style={{ color: 'var(--accent)' }} />
+            <h3>Monthly Consultations</h3>
+          </div>
+          {monthlyApptsData.length === 0 ? (
+            <p className="empty-text">No consultation records.</p>
           ) : (
             <div className="recharts-wrapper">
               <ResponsiveContainer width="100%" height={220}>
-                <LineChart data={lineData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                  <XAxis stroke="#94a3b8" fontSize={10} dataKey="date" />
-                  <YAxis stroke="#94a3b8" fontSize={10} />
+                <BarChart data={monthlyApptsData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                  <XAxis stroke="var(--text-secondary)" fontSize={10} dataKey="month" tickLine={false} />
+                  <YAxis stroke="var(--text-secondary)" fontSize={10} tickLine={false} />
                   <Tooltip
                     contentStyle={{
-                      background: 'rgba(15, 23, 42, 0.95)',
-                      border: '1px solid rgba(255,255,255,0.1)',
+                      background: 'var(--bg-card)',
+                      border: '1px solid var(--border)',
                       borderRadius: '8px',
-                      color: 'white'
+                      color: 'var(--text-primary)',
+                      fontFamily: 'var(--font-body)',
+                      fontSize: '12px',
+                      boxShadow: 'var(--shadow-md)'
                     }}
                   />
-                  <Line
-                    type="monotone"
-                    dataKey="Avg Risk Score (%)"
-                    stroke="#6366f1"
-                    strokeWidth={3}
-                    dot={{ stroke: '#8b5cf6', strokeWidth: 2, r: 4 }}
-                  />
-                </LineChart>
+                  <Bar dataKey="Consultations" fill="var(--accent)" radius={[4, 4, 0, 0]} />
+                </BarChart>
               </ResponsiveContainer>
             </div>
           )}
-        </motion.div>
+        </div>
+      </div>
 
-        {/* Critical Alerts List */}
-        <motion.div 
-          className="glass-card grid-card critical-list-card"
-          variants={{
-            hidden: { opacity: 0, y: 15 },
-            show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: 'easeOut' } }
-          }}
-          whileHover={{ scale: 1.02, boxShadow: '0 8px 30px rgba(99, 102, 241, 0.15)', borderColor: 'rgba(99,102,241,0.2)' }}
-        >
+      {/* COHORTS AND ALERTS ROW */}
+      <div className="doctor-details-split">
+        {/* Recent Patients Table */}
+        <div className="glass-card table-panel-card">
           <div className="card-title-row">
-            <AlertTriangle size={18} className="card-icon red" />
-            <h3>High Risk Critical Patient Alerts</h3>
+            <Users size={18} className="card-icon" style={{ color: 'var(--accent)' }} />
+            <h3>Recent Patients</h3>
           </div>
-          <div className="list-body">
-            {criticalPatients.length === 0 ? (
-              <div className="no-alerts-state">
-                <ShieldCheck size={32} className="alert-success-icon" />
-                <p>All patient risk parameters are within acceptable thresholds.</p>
-              </div>
+          <div className="table-wrapper">
+            {patients.length === 0 ? (
+              <p className="empty-text">No patients registered.</p>
             ) : (
-              criticalPatients.map(({ patient: p, risk_score, glucose, bmi }) => (
-                <div key={p.id} className="critical-alert-item">
-                  <div className="alert-meta">
-                    <span className="alert-name">{p.user.name}</span>
-                    <span className="alert-details">Glucose: {glucose} mg/dL | BMI: {bmi}</span>
-                  </div>
-                  <div className="alert-action-row">
-                    <span className="badge badge-danger">{risk_score}% Risk</span>
-                    <button onClick={() => navigate(`/patients`, { state: { selectedPatientId: p.id } })} className="alert-btn">
-                      <ArrowRight size={16} />
-                    </button>
-                  </div>
-                </div>
-              ))
+              <table className="dashboard-table">
+                <thead>
+                  <tr>
+                    <th>Patient</th>
+                    <th>Age</th>
+                    <th>Risk Level</th>
+                    <th>Last Visit</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {patients.slice(0, 5).map((p) => {
+                    const preds = predictionsMap[p.id] || [];
+                    const latestPred = preds[preds.length - 1];
+                    const pAppts = appointments.filter(a => a.patient_id === p.id);
+                    const latestAppt = pAppts[pAppts.length - 1];
+                    
+                    const riskScore = latestPred ? latestPred.risk_score : 0;
+                    let riskBadge = <span className="badge badge-info">No Scan</span>;
+                    if (latestPred) {
+                      if (riskScore >= 60) riskBadge = <span className="badge badge-danger">High Risk</span>;
+                      else if (riskScore >= 30) riskBadge = <span className="badge badge-warning">Medium Risk</span>;
+                      else riskBadge = <span className="badge badge-success">Low Risk</span>;
+                    }
+                    
+                    const lastVisitDate = latestAppt 
+                      ? new Date(latestAppt.scheduled_at).toLocaleDateString()
+                      : (latestPred ? new Date(latestPred.created_at).toLocaleDateString() : 'N/A');
+
+                    const isActive = latestPred || latestAppt;
+
+                    return (
+                      <tr key={p.id} onClick={() => navigate('/patients', { state: { selectedPatientId: p.id } })} style={{ cursor: 'pointer' }}>
+                        <td><strong>{p.user.name}</strong></td>
+                        <td>{p.age || 'N/A'}</td>
+                        <td>{riskBadge}</td>
+                        <td>{lastVisitDate}</td>
+                        <td>
+                          <span className={`badge ${isActive ? 'badge-success' : 'badge-warning'}`}>
+                            {isActive ? 'Active' : 'Inactive'}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             )}
           </div>
-        </motion.div>
+        </div>
 
-        {/* Assigned Patients List Panel */}
-        <motion.div 
-          className="glass-card grid-card assigned-list-card"
-          variants={{
-            hidden: { opacity: 0, y: 15 },
-            show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: 'easeOut' } }
-          }}
-          whileHover={{ scale: 1.02, boxShadow: '0 8px 30px rgba(99, 102, 241, 0.15)', borderColor: 'rgba(99,102,241,0.2)' }}
-        >
+        {/* Top Conditions Progress Bars */}
+        <div className="glass-card conditions-panel-card">
           <div className="card-title-row">
-            <Users size={18} className="card-icon" />
-            <h3>Registered Patients Roster</h3>
+            <Award size={18} className="card-icon" style={{ color: 'var(--accent)' }} />
+            <h3>Top Conditions (Scanned Roster)</h3>
           </div>
-          <div className="list-body">
-            {patients.length === 0 ? (
-              <p className="empty-text">No patients registered in the system.</p>
+          <div className="conditions-list-wrapper">
+            {scannedCount === 0 ? (
+              <p className="empty-text">No diagnostics logs registered to compile population analytics.</p>
             ) : (
-              patients.map((p) => {
-                const preds = predictionsMap[p.id] || [];
-                const latest = preds.length > 0 ? preds[preds.length - 1] : null;
+              conditionsList.map((cond, idx) => {
+                const percentage = Math.round((cond.count / scannedCount) * 100);
                 return (
-                  <div key={p.id} className="roster-item" onClick={() => navigate('/patients', { state: { selectedPatientId: p.id } })}>
-                    <div className="roster-meta">
-                      <span className="roster-name">{p.user.name}</span>
-                      <span className="roster-sub">Age: {p.age || 'N/A'} | Blood Group: {p.blood_group || 'N/A'}</span>
+                  <div key={idx} className="condition-progress-row">
+                    <div className="condition-meta-row">
+                      <span className="condition-name">{cond.name}</span>
+                      <span className="condition-ratio"><strong>{cond.count}</strong> / {scannedCount} Patients ({percentage}%)</span>
                     </div>
-                    <div className="roster-score-row">
-                      {latest ? (
-                        <span className={`badge ${latest.risk_score >= 50 ? 'badge-danger' : 'badge-success'}`}>
-                          {latest.risk_score}% Risk
-                        </span>
-                      ) : (
-                        <span className="badge badge-warning">No Assessment</span>
-                      )}
-                      <ArrowRight size={14} className="roster-arrow" />
+                    <div className="condition-bar-track">
+                      <div 
+                        className="condition-bar-fill"
+                        style={{ 
+                          width: `${percentage}%`, 
+                          backgroundColor: cond.color,
+                          transition: 'width 0.6s ease'
+                        }}
+                      />
                     </div>
                   </div>
                 );
               })
             )}
           </div>
-        </motion.div>
+        </div>
+      </div>
 
-        {/* Patient Cohorts Scatter Plot */}
-        <motion.div 
-          className="glass-card grid-card chart-container-card full-width" 
-          style={{ gridColumn: 'span 12' }}
-          variants={{
-            hidden: { opacity: 0, y: 15 },
-            show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: 'easeOut' } }
-          }}
-          whileHover={{ scale: 1.02, boxShadow: '0 8px 30px rgba(99, 102, 241, 0.15)', borderColor: 'rgba(99,102,241,0.2)' }}
-        >
+      {/* Patient Vitals Scatter Correlation Plot */}
+      <div className="glass-card scatter-plot-card" style={{ marginTop: '24px' }}>
+        <div className="card-title-row">
+          <TrendingUp size={18} className="card-icon" style={{ color: 'var(--accent)' }} />
           <h3>Patient Cohort Correlation (Glucose vs. BMI)</h3>
-          {scatterData.length === 0 ? (
-            <p className="empty-text">No patient vitals registered for correlation mapping.</p>
-          ) : (
-            <div className="recharts-wrapper" style={{ height: '320px', marginTop: '10px' }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <ScatterChart margin={{ top: 20, right: 20, bottom: 20, left: -10 }}>
-                  <XAxis 
-                    type="number" 
-                    dataKey="glucose" 
-                    name="Glucose" 
-                    unit=" mg/dL" 
-                    stroke="#94a3b8" 
-                    fontSize={10} 
-                    domain={[60, 220]}
-                  />
-                  <YAxis 
-                    type="number" 
-                    dataKey="bmi" 
-                    name="BMI" 
-                    stroke="#94a3b8" 
-                    fontSize={10} 
-                    domain={[15, 55]}
-                  />
-                  <Tooltip 
-                    cursor={{ strokeDasharray: '3 3' }}
-                    content={({ active, payload }) => {
-                      if (active && payload && payload.length) {
-                        const data = payload[0].payload;
-                        return (
-                          <div style={{
-                            background: 'rgba(15, 23, 42, 0.95)',
-                            border: '1px solid rgba(255,255,255,0.1)',
-                            borderRadius: '8px',
-                            padding: '12px',
-                            color: 'white',
-                            fontSize: '12px',
-                            boxShadow: '0 4px 20px rgba(0,0,0,0.5)'
-                          }}>
-                            <p style={{ margin: '0 0 6px 0', fontWeight: 'bold' }}>{data.name}</p>
-                            <p style={{ margin: '2px 0' }}>Glucose: <strong>{data.glucose} mg/dL</strong></p>
-                            <p style={{ margin: '2px 0' }}>BMI: <strong>{data.bmi}</strong></p>
-                            <p style={{ margin: '2px 0', color: data.risk >= 60 ? '#ef4444' : data.risk >= 30 ? '#fbbf24' : '#10b981' }}>
-                              Risk Score: <strong>{data.risk}% ({data.prediction})</strong>
-                            </p>
-                          </div>
-                        );
-                      }
-                      return null;
-                    }}
-                  />
-                  <Scatter 
-                    name="Patients" 
-                    data={scatterData} 
-                  >
-                    {scatterData.map((entry, index) => {
-                      const color = entry.risk >= 60 ? '#ef4444' : entry.risk >= 30 ? '#fbbf24' : '#10b981';
-                      return <Cell key={`cell-${index}`} fill={color} />;
-                    })}
-                  </Scatter>
-                </ScatterChart>
-              </ResponsiveContainer>
-            </div>
-          )}
-        </motion.div>
-      </motion.div>
+        </div>
+        {scatterData.length === 0 ? (
+          <p className="empty-text">No patient vitals registered for correlation mapping.</p>
+        ) : (
+          <div className="recharts-wrapper" style={{ height: '320px', marginTop: '10px' }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <ScatterChart margin={{ top: 20, right: 20, bottom: 20, left: -10 }}>
+                <XAxis 
+                  type="number" 
+                  dataKey="glucose" 
+                  name="Glucose" 
+                  unit=" mg/dL" 
+                  stroke="var(--text-secondary)" 
+                  fontSize={10} 
+                  domain={[60, 220]}
+                  tickLine={false}
+                />
+                <YAxis 
+                  type="number" 
+                  dataKey="bmi" 
+                  name="BMI" 
+                  stroke="var(--text-secondary)" 
+                  fontSize={10} 
+                  domain={[15, 55]}
+                  tickLine={false}
+                />
+                <Tooltip 
+                  cursor={{ strokeDasharray: '3 3' }}
+                  content={({ active, payload }) => {
+                    if (active && payload && payload.length) {
+                      const data = payload[0].payload;
+                      return (
+                        <div style={{
+                          background: 'var(--bg-card)',
+                          border: '1px solid var(--border)',
+                          borderRadius: '8px',
+                          padding: '12px',
+                          color: 'var(--text-primary)',
+                          fontSize: '12px',
+                          boxShadow: 'var(--shadow-md)'
+                        }}>
+                          <p style={{ margin: '0 0 6px 0', fontWeight: 'bold' }}>{data.name}</p>
+                          <p style={{ margin: '2px 0' }}>Glucose: <strong>{data.glucose} mg/dL</strong></p>
+                          <p style={{ margin: '2px 0' }}>BMI: <strong>{data.bmi}</strong></p>
+                          <p style={{ margin: '2px 0', color: data.risk >= 60 ? 'var(--danger)' : data.risk >= 30 ? 'var(--warning)' : 'var(--success)' }}>
+                            Risk Score: <strong>{data.risk}% ({data.prediction})</strong>
+                          </p>
+                        </div>
+                      );
+                    }
+                    return null;
+                  }}
+                />
+                <Scatter 
+                  name="Patients" 
+                  data={scatterData} 
+                >
+                  {scatterData.map((entry, index) => {
+                    const color = entry.risk >= 60 ? 'var(--danger)' : entry.risk >= 30 ? 'var(--warning)' : 'var(--success)';
+                    return <Cell key={`cell-${index}`} fill={color} />;
+                  })}
+                </Scatter>
+              </ScatterChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+      </div>
+
+      {/* Critical High Risk Alerts list */}
+      {criticalPatients.length > 0 && (
+        <div className="glass-card alerts-full-card" style={{ marginTop: '24px' }}>
+          <div className="card-title-row">
+            <AlertTriangle size={18} className="card-icon red" style={{ color: 'var(--danger)' }} />
+            <h3>High Risk Critical Patient Alerts</h3>
+          </div>
+          <div className="alerts-body-list">
+            {criticalPatients.map(({ patient: p, risk_score, glucose, bmi }) => (
+              <div key={p.id} className="clinical-alert-item-dashboard">
+                <div className="alert-text-meta">
+                  <span className="alert-p-name">{p.user.name}</span>
+                  <span className="alert-p-detail">Glucose: {glucose} mg/dL | BMI: {bmi} (Severe parameters flagged)</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <span className="badge badge-danger">{risk_score}% Risk</span>
+                  <button onClick={() => navigate(`/patients`, { state: { selectedPatientId: p.id } })} className="btn btn-secondary" style={{ padding: '6px 12px', fontSize: '12px' }}>
+                    View Profile
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

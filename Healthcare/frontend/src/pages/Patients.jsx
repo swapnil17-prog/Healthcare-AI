@@ -1,7 +1,22 @@
 import React, { useState, useEffect } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
-import { Users, FileText, Upload, Plus, ArrowLeft, Download, PlusCircle, Trash, RefreshCw, Activity } from 'lucide-react';
+import { 
+  Users, 
+  FileText, 
+  Upload, 
+  Plus, 
+  ArrowLeft, 
+  Download, 
+  PlusCircle, 
+  Trash, 
+  RefreshCw, 
+  Activity,
+  Search,
+  SlidersHorizontal,
+  Eye,
+  ClipboardCopy
+} from 'lucide-react';
 import { 
   useGetPatientsQuery,
   useGetMedicalHistoryQuery,
@@ -14,6 +29,7 @@ import {
   downloadPdfReport,
   downloadReportFile
 } from '../services/apiSlice';
+import { api } from '../services/api';
 import TrendChart from '../components/TrendChart';
 import './Patients.css';
 
@@ -34,6 +50,15 @@ export default function Patients() {
   const [addMedicalHistory] = useAddMedicalHistoryMutation();
   const [deleteMedicalHistory] = useDeleteMedicalHistoryMutation();
 
+  // Search & Filter states
+  const [searchTerm, setSearchTerm] = useState('');
+  const [activeTab, setActiveTab] = useState('All'); // 'All', 'High Risk', 'Medium Risk', 'Low Risk'
+
+  // Parallel extra data state for roster table
+  const [predictionsMap, setPredictionsMap] = useState({});
+  const [appointments, setAppointments] = useState([]);
+  const [extraLoading, setExtraLoading] = useState(false);
+
   // Forms states
   const [disease, setDisease] = useState('');
   const [diagDate, setDiagDate] = useState('');
@@ -53,6 +78,7 @@ export default function Patients() {
   const [address, setAddress] = useState('');
 
   const location = useLocation();
+  const navigate = useNavigate();
 
   useEffect(() => {
     const dashboardPatientId = location.state?.selectedPatientId;
@@ -60,6 +86,38 @@ export default function Patients() {
       setSelectedPatientId(dashboardPatientId);
     }
   }, [location.state, patients]);
+
+  // Load predictions & appointments for all patients to display in data table
+  useEffect(() => {
+    if (patients.length > 0) {
+      loadExtraRosterDetails();
+    }
+  }, [patientsList]);
+
+  const loadExtraRosterDetails = async () => {
+    setExtraLoading(true);
+    try {
+      const appts = await api.getAppointments();
+      setAppointments(appts);
+
+      const predsMap = {};
+      await Promise.all(
+        patients.map(async (p) => {
+          try {
+            const preds = await api.getPredictions(p.id);
+            predsMap[p.id] = preds;
+          } catch (e) {
+            console.error(e);
+          }
+        })
+      );
+      setPredictionsMap(predsMap);
+    } catch (e) {
+      console.error('Failed to load patient predictions lists', e);
+    } finally {
+      setExtraLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (selectedPatient) {
@@ -84,7 +142,6 @@ export default function Patients() {
         notes
       };
       await addMedicalHistory({ patientId: selectedPatientId, data: payload }).unwrap();
-      // Clear form
       setDisease('');
       setDiagDate('');
       setMeds('');
@@ -113,7 +170,6 @@ export default function Patients() {
 
       await uploadReport({ patientId: selectedPatientId, formData }).unwrap();
       setReportFile(null);
-      // Reset file input
       document.getElementById('report-file-input').value = '';
     } catch (err) {
       alert(`Upload failed: ${err.data?.detail || err.message}`);
@@ -163,14 +219,30 @@ export default function Patients() {
     return <div className="dashboard-loading-container">Loading Patient Profile Panel...</div>;
   }
 
+  // Filter patients by search term and risk category
+  const filteredPatients = patients.filter((p) => {
+    // 1. Search term match
+    const nameMatch = p.user.name.toLowerCase().includes(searchTerm.toLowerCase());
+    const emailMatch = p.user.email.toLowerCase().includes(searchTerm.toLowerCase());
+    if (!nameMatch && !emailMatch) return false;
+
+    // 2. Active Tab filter match
+    const preds = predictionsMap[p.id] || [];
+    const latest = preds[preds.length - 1];
+    const riskScore = latest ? latest.risk_score : 0;
+
+    if (activeTab === 'High Risk') return latest && riskScore >= 60;
+    if (activeTab === 'Medium Risk') return latest && riskScore >= 30 && riskScore < 60;
+    if (activeTab === 'Low Risk') return latest && riskScore < 30;
+    return true; // 'All'
+  });
+
   return (
     <div className="patients-page-container">
-      <div className="bg-gradient-radial"></div>
-
-      {/* Roster View */}
+      {/* Roster Table View (when no patient is selected) */}
       {!selectedPatient ? (
-        <div className="roster-view-container">
-          <div className="dashboard-header glass-card">
+        <div className="roster-view-wrapper">
+          <div className="dashboard-header-panel">
             <div className="header-greeting">
               <span className="welcome-tag">PATIENT ROSTER</span>
               <h2>Registered Patients</h2>
@@ -178,41 +250,131 @@ export default function Patients() {
             </div>
           </div>
 
-          <div className="patients-grid">
-            {patients.length === 0 ? (
-              <div className="glass-card empty-roster">
-                <p>No patient profiles registered in the system.</p>
-              </div>
-            ) : (
-              patients.map((p) => (
-                <div key={p.id} className="glass-card patient-roster-card" onClick={() => setSelectedPatientId(p.id)}>
-                  <div className="roster-card-header">
-                    <h4>{p.user.name}</h4>
-                    <span className="badge badge-success">ID: {p.id}</span>
-                  </div>
-                  <div className="roster-card-details">
-                    <span><strong>Email:</strong> {p.user.email}</span>
-                    <span><strong>Age:</strong> {p.age || 'N/A'} | <strong>Blood:</strong> {p.blood_group || 'N/A'}</span>
-                    <span><strong>BMI:</strong> {p.weight && p.height ? (p.weight / ((p.height / 100) ** 2)).toFixed(1) : 'N/A'}</span>
-                  </div>
-                </div>
-              ))
-            )}
+          {/* Search bar & filter tabs */}
+          <div className="roster-controls-panel">
+            <div className="search-bar-wrapper">
+              <Search size={18} className="search-icon" />
+              <input 
+                type="text" 
+                placeholder="Search patient by name or email..." 
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="input-field search-input"
+              />
+            </div>
+            
+            <div className="filter-tabs-row">
+              {['All', 'High Risk', 'Medium Risk', 'Low Risk'].map((tab) => (
+                <button
+                  key={tab}
+                  type="button"
+                  onClick={() => setActiveTab(tab)}
+                  className={`filter-tab-btn ${activeTab === tab ? 'active' : ''}`}
+                >
+                  {tab}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Clean Data Table */}
+          <div className="glass-card roster-table-card">
+            <div className="table-wrapper">
+              {filteredPatients.length === 0 ? (
+                <p className="empty-text">No patients matched search criteria.</p>
+              ) : (
+                <table className="dashboard-table">
+                  <thead>
+                    <tr>
+                      <th>Patient</th>
+                      <th>Age</th>
+                      <th>Risk Level</th>
+                      <th>Last Visit</th>
+                      <th>Status</th>
+                      <th style={{ textAlign: 'center' }}>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredPatients.map((p) => {
+                      const preds = predictionsMap[p.id] || [];
+                      const latest = preds[preds.length - 1];
+                      const riskScore = latest ? latest.risk_score : 0;
+                      
+                      let riskBadge = <span className="badge badge-info">No Scan</span>;
+                      if (latest) {
+                        if (riskScore >= 60) riskBadge = <span className="badge badge-danger">High Risk</span>;
+                        else if (riskScore >= 30) riskBadge = <span className="badge badge-warning">Medium Risk</span>;
+                        else riskBadge = <span className="badge badge-success">Low Risk</span>;
+                      }
+
+                      const pAppts = appointments.filter(a => a.patient_id === p.id);
+                      const latestAppt = pAppts[pAppts.length - 1];
+
+                      const lastVisitDate = latestAppt 
+                        ? new Date(latestAppt.scheduled_at).toLocaleDateString()
+                        : (latest ? new Date(latest.created_at).toLocaleDateString() : 'N/A');
+
+                      const isActive = latest || latestAppt;
+
+                      return (
+                        <tr key={p.id}>
+                          <td>
+                            <div className="roster-patient-cell">
+                              <span className="p-cell-name">{p.user.name}</span>
+                              <span className="p-cell-email">{p.user.email}</span>
+                            </div>
+                          </td>
+                          <td>{p.age || 'N/A'}</td>
+                          <td>{riskBadge}</td>
+                          <td>{lastVisitDate}</td>
+                          <td>
+                            <span className={`badge ${isActive ? 'badge-success' : 'badge-warning'}`}>
+                              {isActive ? 'Active' : 'Inactive'}
+                            </span>
+                          </td>
+                          <td>
+                            <div className="actions-button-row">
+                              <button 
+                                onClick={() => setSelectedPatientId(p.id)} 
+                                className="btn btn-secondary action-btn-mini" 
+                                title="View Medical File"
+                              >
+                                <Eye size={14} />
+                                <span>View File</span>
+                              </button>
+                              <button 
+                                onClick={() => navigate('/predictions', { state: { selectedPatientId: p.id } })}
+                                className="btn btn-primary action-btn-mini"
+                                title="Perform ML Risk Screening"
+                              >
+                                <ClipboardCopy size={14} />
+                                <span>Scan Risk</span>
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              )}
+            </div>
           </div>
         </div>
       ) : (
-        /* Selected Patient Profile Detail View */
-        <div className="patient-detail-view">
-          <button className="btn btn-secondary back-btn" onClick={() => setSelectedPatientId(null)}>
+        /* Selected Patient Case File Details view */
+        <div className="patient-detail-view-wrapper">
+          <button className="btn btn-secondary back-to-list-btn" onClick={() => setSelectedPatientId(null)}>
             <ArrowLeft size={16} />
             <span>Back to Patients List</span>
           </button>
 
-          {/* Profile Overview Card */}
+          {/* Header detail summary card */}
           <div className="glass-card detail-header-card">
-            <div className="detail-meta">
+            <div className="detail-meta-header">
+              <span className="detail-header-tag">PATIENT RECORD FILE</span>
               <h2>{selectedPatient.user.name}</h2>
-              <span className="detail-sub">Patient Case File #{selectedPatient.id} | Email: {selectedPatient.user.email}</span>
+              <p>Case File ID: #{selectedPatient.id} | Email: {selectedPatient.user.email}</p>
             </div>
             <button onClick={handleDownloadPDF} className="btn btn-primary export-pdf-btn" disabled={pdfLoading}>
               {pdfLoading ? (
@@ -229,9 +391,11 @@ export default function Patients() {
             </button>
           </div>
 
-          <div className="detail-grid">
-            {/* Column 1: Demographics Form */}
-            <div className={`glass-card grid-card ${user?.role === 'doctor' ? 'centered-grid-card' : ''}`}>
+          {/* Grids Content */}
+          <div className="detail-sections-grid">
+            
+            {/* Column 1: Demographics */}
+            <div className="glass-card detail-card-grid">
               <h3>Demographics & Vital Metrics</h3>
               <form onSubmit={handleUpdateDemographics} className="demographics-form">
                 <div className="form-row-2">
@@ -274,9 +438,9 @@ export default function Patients() {
               </form>
             </div>
 
-            {/* Column 2: Upload Lab Diagnostics */}
+            {/* Column 2: Upload Lab Diagnostics (Available for Patient/Admin) */}
             {user?.role !== 'doctor' && (
-              <div className="glass-card grid-card">
+              <div className="glass-card detail-card-grid">
                 <h3>Upload Diagnostics Report</h3>
                 <form onSubmit={handleUploadReport} className="upload-form">
                   <div className="form-group">
@@ -310,15 +474,15 @@ export default function Patients() {
 
                 {/* Uploaded Reports Lists */}
                 <h4 className="sub-section-title">Diagnostic Reports Archive</h4>
-                <div className="list-body sub-list">
+                <div className="reports-mini-archive-list">
                   {reports.length === 0 ? (
                     <p className="empty-text">No diagnostic documents recorded.</p>
                   ) : (
                     reports.map((rep) => (
-                      <div key={rep.id} className="list-item">
-                        <div className="item-meta">
-                          <span className="item-title">{rep.report_type}</span>
-                          <span className="item-date">{new Date(rep.upload_date).toLocaleDateString()}</span>
+                      <div key={rep.id} className="report-archive-item">
+                        <div className="report-item-meta">
+                          <span className="report-title">{rep.report_type}</span>
+                          <span className="report-date">{new Date(rep.upload_date).toLocaleDateString()}</span>
                         </div>
                         <a
                           href="#"
@@ -337,7 +501,7 @@ export default function Patients() {
                               alert(`Download failed: ${err.message}`);
                             }
                           }}
-                          className="report-download-link"
+                          className="report-download-btn-link"
                         >
                           Download
                         </a>
@@ -349,21 +513,21 @@ export default function Patients() {
             )}
 
             {/* Column 3: Clinical Trends Visualization */}
-            <div className="glass-card grid-card full-width">
+            <div className="glass-card detail-card-grid full-width-grid">
               <div className="card-title-row">
-                <Activity size={18} className="card-icon" />
+                <Activity size={18} className="card-icon" style={{ color: 'var(--accent)' }} />
                 <h3>Clinical Assessment Trends</h3>
               </div>
               <TrendChart predictions={predictions} />
             </div>
 
             {/* Column 4: Medical History Logs */}
-            <div className="glass-card grid-card full-width">
+            <div className="glass-card detail-card-grid full-width-grid">
               <h3>Clinical Medical History Log</h3>
               
               <div className="history-split-layout">
                 {/* History Form */}
-                <form onSubmit={handleAddHistory} className="history-form glass-card shadow-sm">
+                <form onSubmit={handleAddHistory} className="history-form-card">
                   <h4>Log New Diagnosis</h4>
                   <div className="form-group">
                     <label className="input-label">Disease / Diagnosis</label>
@@ -381,19 +545,19 @@ export default function Patients() {
                     <label className="input-label">Clinical Notes</label>
                     <textarea rows="3" className="input-field textarea-field" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Patient reports mild fatigue..."></textarea>
                   </div>
-                  <button type="submit" className="btn btn-primary add-history-btn">
+                  <button type="submit" className="btn btn-primary add-history-btn" style={{ width: '100%' }}>
                     <PlusCircle size={16} />
                     <span>Log Clinical Entry</span>
                   </button>
                 </form>
 
                 {/* History Log List */}
-                <div className="history-log-list">
+                <div className="history-log-list-scrollable">
                   {medicalHistory.length === 0 ? (
                     <p className="empty-text">No clinical history logged for this patient case file.</p>
                   ) : (
                     medicalHistory.map((h) => (
-                      <div key={h.id} className="history-log-item glass-card shadow-sm">
+                      <div key={h.id} className="history-log-item-card">
                         <div className="history-item-header">
                           <h5>{h.disease}</h5>
                           <span className="history-item-date">{new Date(h.diagnosis_date).toLocaleDateString()}</span>
@@ -402,9 +566,9 @@ export default function Patients() {
                           {h.medications && <p><strong>Medications:</strong> {h.medications}</p>}
                           {h.notes && <p><strong>Notes:</strong> {h.notes}</p>}
                         </div>
-                        <button onClick={() => handleDeleteHistory(h.id)} className="history-delete-btn">
+                        <button onClick={() => handleDeleteHistory(h.id)} className="history-delete-btn-link">
                           <Trash size={14} />
-                          <span>Delete</span>
+                          <span>Delete Log</span>
                         </button>
                       </div>
                     ))
@@ -414,7 +578,7 @@ export default function Patients() {
             </div>
 
             {/* Column 5: Predictions Log */}
-            <div className="glass-card grid-card full-width">
+            <div className="glass-card detail-card-grid full-width-grid">
               <h3>Diabetes Risk Assessments Log</h3>
               <div className="table-wrapper">
                 {predictions.length === 0 ? (

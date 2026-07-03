@@ -122,7 +122,6 @@ export default function Scheduling() {
     e.preventDefault();
     if (!consultNotes) return;
     try {
-      // Find original appointment to append notes
       const original = appointments.find(a => a.id === consultId);
       const originalNotes = original?.notes ? `${original.notes}\n` : '';
       const mergedNotes = `${originalNotes}Consultation Notes: ${consultNotes} (Referral: ${referralStatus})`;
@@ -153,16 +152,14 @@ export default function Scheduling() {
 
   return (
     <div className="scheduling-page-container">
-      <div className="bg-gradient-radial"></div>
-
       {/* Header Banner */}
-      <div className="dashboard-header glass-card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
+      <div className="dashboard-header-panel">
         <div className="header-greeting">
           <span className="welcome-tag">SCHEDULING CENTER</span>
           <h2>Consultation Planner</h2>
           <p>Review scheduling slots, coordinate reschedules, and record patient consultation summaries.</p>
         </div>
-        <div style={{ display: 'flex', gap: '8px' }}>
+        <div className="view-mode-buttons-row">
           <button 
             type="button" 
             onClick={() => { setViewMode('list'); setSelectedDayAppts(null); }} 
@@ -185,16 +182,16 @@ export default function Scheduling() {
       {viewMode === 'list' ? (
         <>
           {/* Tabs Row */}
-          <div className="tabs-header-row">
+          <div className="scheduling-tabs-row">
             <button 
               onClick={() => { setActiveTab('active'); setRescheduleId(null); setConsultId(null); }}
-              className={`tab-btn ${activeTab === 'active' ? 'active' : ''}`}
+              className={`sched-tab-btn ${activeTab === 'active' ? 'active' : ''}`}
             >
               Active Consultations ({activeAppts.length})
             </button>
             <button 
               onClick={() => { setActiveTab('history'); setRescheduleId(null); setConsultId(null); }}
-              className={`tab-btn ${activeTab === 'history' ? 'active' : ''}`}
+              className={`sched-tab-btn ${activeTab === 'history' ? 'active' : ''}`}
             >
               Session Archive ({historyAppts.length})
             </button>
@@ -212,7 +209,9 @@ export default function Scheduling() {
                 <div key={appt.id} className="glass-card appt-card">
                   <div className="appt-card-header">
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <User className="card-avatar-icon" size={20} />
+                      <div className="appt-avatar-wrapper">
+                        <User className="card-avatar-icon" size={20} />
+                      </div>
                       <div>
                         <h4>{getPatientName(appt.patient_id)}</h4>
                         <span className="appt-meta-sub">Case ID: #{appt.patient_id}</span>
@@ -299,7 +298,7 @@ export default function Scheduling() {
 
                   {/* Rescheduling Form Overlay inline */}
                   {rescheduleId === appt.id && (
-                    <form onSubmit={handleSaveReschedule} className="inline-action-form glass-card">
+                    <form onSubmit={handleSaveReschedule} className="inline-action-form-light">
                       <h5>Reschedule Session</h5>
                       <div className="form-group">
                         <label className="input-label">Select Date & Time</label>
@@ -330,7 +329,7 @@ export default function Scheduling() {
 
                   {/* Consultation Notes Form Overlay inline */}
                   {consultId === appt.id && (
-                    <form onSubmit={handleSaveConsultNotes} className="inline-action-form glass-card">
+                    <form onSubmit={handleSaveConsultNotes} className="inline-action-form-light">
                       <h5>Conduct Consultation & Write Notes</h5>
                       <div className="form-group">
                         <label className="input-label">Clinical Diagnostic Notes & Action Items</label>
@@ -369,22 +368,22 @@ export default function Scheduling() {
         </>
       ) : (
         /* Monthly Calendar Grid View */
-        <div className="calendar-view-container glass-card" style={{ padding: '24px', marginTop: '12px' }}>
-          <div className="calendar-nav-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
-            <h3 style={{ fontSize: '18px', fontWeight: 700, margin: 0, color: 'white' }}>
+        <div className="calendar-view-container-light">
+          <div className="calendar-nav-row">
+            <h3>
               {new Date(currentYear, currentMonth).toLocaleDateString([], { month: 'long', year: 'numeric' })}
             </h3>
-            <div style={{ display: 'flex', gap: '8px' }}>
-              <button type="button" onClick={handlePrevMonth} className="btn btn-secondary" style={{ padding: '6px 12px', fontSize: '13px' }}>&larr; Prev</button>
-              <button type="button" onClick={() => { setCurrentYear(new Date().getFullYear()); setCurrentMonth(new Date().getMonth()); setSelectedDayAppts(null); }} className="btn btn-secondary" style={{ padding: '6px 12px', fontSize: '13px' }}>Today</button>
-              <button type="button" onClick={handleNextMonth} className="btn btn-secondary" style={{ padding: '6px 12px', fontSize: '13px' }}>Next &rarr;</button>
+            <div className="calendar-nav-buttons">
+              <button type="button" onClick={handlePrevMonth} className="btn btn-secondary calendar-nav-btn">&larr; Prev</button>
+              <button type="button" onClick={() => { setCurrentYear(new Date().getFullYear()); setCurrentMonth(new Date().getMonth()); setSelectedDayAppts(null); }} className="btn btn-secondary calendar-nav-btn">Today</button>
+              <button type="button" onClick={handleNextMonth} className="btn btn-secondary calendar-nav-btn">Next &rarr;</button>
             </div>
           </div>
 
-          <div className="calendar-grid-wrapper" style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '10px' }}>
+          <div className="calendar-grid-layout">
             {/* Day of Week Headers */}
             {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(d => (
-              <div key={d} style={{ textAlign: 'center', fontWeight: 'bold', fontSize: '12px', color: 'hsl(var(--text-muted))', paddingBottom: '10px', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+              <div key={d} className="calendar-grid-header">
                 {d}
               </div>
             ))}
@@ -399,40 +398,25 @@ export default function Scheduling() {
                 <div 
                   key={idx} 
                   onClick={() => handleDayClick(day)}
-                  style={{
-                    minHeight: '80px',
-                    padding: '8px',
-                    background: day ? (isSelected ? 'rgba(99, 102, 241, 0.15)' : 'rgba(255, 255, 255, 0.02)') : 'transparent',
-                    border: day ? (isSelected ? '1px solid hsl(var(--primary))' : '1px solid rgba(255, 255, 255, 0.05)') : 'none',
-                    borderRadius: '8px',
-                    cursor: day ? 'pointer' : 'default',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    justifyContent: 'space-between',
-                    transition: 'all 0.2s ease',
-                    position: 'relative'
-                  }}
-                  className={day ? "calendar-day-cell" : ""}
+                  className={`calendar-day-cell-light ${day ? 'has-day' : 'empty'} ${isSelected ? 'selected' : ''}`}
                 >
                   {day && (
                     <>
-                      <span style={{ fontWeight: '700', fontSize: '13px', color: isSelected ? 'white' : 'hsl(var(--text-muted))' }}>{day}</span>
+                      <span className="calendar-day-number">{day}</span>
                       {hasAppts && (
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: '6px' }}>
+                        <div className="calendar-appt-indicator-row">
                           {dayAppts.map(appt => (
                             <span 
                               key={appt.id} 
-                              style={{
-                                width: '6px',
-                                height: '6px',
-                                borderRadius: '50%',
-                                display: 'inline-block',
-                                background: appt.status === 'Completed' ? '#10b981' : appt.status === 'Accepted' ? '#3b82f6' : appt.status === 'Rescheduled' ? '#fbbf24' : '#64748b'
-                              }}
+                              className={`appt-dot-indicator ${
+                                appt.status === 'Completed' ? 'completed' : 
+                                appt.status === 'Accepted' ? 'accepted' : 
+                                appt.status === 'Rescheduled' ? 'rescheduled' : 'scheduled'
+                              }`}
                               title={`${getPatientName(appt.patient_id)} (${appt.status})`}
                             />
                           ))}
-                          <span style={{ fontSize: '9px', color: 'white', fontWeight: 600 }}>({dayAppts.length})</span>
+                          <span className="calendar-appt-count">({dayAppts.length})</span>
                         </div>
                       )}
                     </>
@@ -444,25 +428,25 @@ export default function Scheduling() {
 
           {/* Details Drawer for selected day */}
           {selectedDayAppts && (
-            <div className="calendar-details-panel glass-card" style={{ marginTop: '24px', padding: '16px', background: 'rgba(10, 15, 30, 0.4)', animation: 'fade-in 0.3s ease' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255, 255, 255, 0.08)', paddingBottom: '8px', marginBottom: '12px' }}>
-                <h4 style={{ margin: 0, fontSize: '14px', color: 'white' }}>
+            <div className="calendar-details-drawer">
+              <div className="details-drawer-header">
+                <h4>
                   Consultations on {new Date(currentYear, currentMonth, selectedDayNumber).toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric' })}
                 </h4>
                 <button type="button" onClick={() => setSelectedDayAppts(null)} className="btn btn-secondary" style={{ padding: '4px 8px', fontSize: '11px', height: 'auto', minHeight: 'unset' }}>Close</button>
               </div>
               {selectedDayAppts.length === 0 ? (
-                <p style={{ margin: 0, fontSize: '12.5px', color: 'hsl(var(--text-muted))' }}>No appointments booked on this date.</p>
+                <p className="empty-text">No appointments booked on this date.</p>
               ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <div className="drawer-appointments-list">
                   {selectedDayAppts.map(appt => (
-                    <div key={appt.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255, 255, 255, 0.02)', padding: '10px 12px', border: '1px solid rgba(255, 255, 255, 0.05)', borderRadius: '6px', fontSize: '12.5px' }}>
+                    <div key={appt.id} className="drawer-appointment-item">
                       <div>
-                        <strong style={{ color: 'white' }}>{getPatientName(appt.patient_id)}</strong>
-                        <span style={{ color: 'hsl(var(--text-muted))', marginLeft: '8px' }}>
+                        <strong style={{ color: 'var(--text-primary)' }}>{getPatientName(appt.patient_id)}</strong>
+                        <span style={{ color: 'var(--text-secondary)', marginLeft: '8px', fontSize: '11px' }}>
                           {new Date(appt.scheduled_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                         </span>
-                        {appt.notes && <p style={{ margin: '4px 0 0 0', fontSize: '11.5px', color: 'hsl(var(--text-muted))' }}>Notes: {appt.notes}</p>}
+                        {appt.notes && <p className="drawer-appt-notes">Notes: {appt.notes}</p>}
                       </div>
                       <span className={`badge ${
                         appt.status === 'Completed' ? 'badge-success' :

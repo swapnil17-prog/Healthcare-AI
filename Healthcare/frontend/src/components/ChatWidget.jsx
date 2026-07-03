@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { MessageSquare, X, Send, AlertTriangle } from 'lucide-react';
+import { MessageSquare, X, Send, AlertTriangle, RefreshCw, Activity } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { api } from '../services/api';
 import './ChatWidget.css';
@@ -10,6 +10,13 @@ export default function ChatWidget() {
   const [inputMsg, setInputMsg] = useState('');
   const [loading, setLoading] = useState(false);
   const messagesEndRef = useRef(null);
+
+  // Listen for the custom "open-chat" event fired by the sidebar
+  useEffect(() => {
+    const handleOpenChat = () => setIsOpen(true);
+    window.addEventListener('open-chat', handleOpenChat);
+    return () => window.removeEventListener('open-chat', handleOpenChat);
+  }, []);
 
   useEffect(() => {
     if (isOpen) {
@@ -123,7 +130,7 @@ export default function ChatWidget() {
 
   return (
     <div className="chat-widget-container">
-      {/* Floating Toggle Button */}
+      {/* Floating Toggle Button (if closed) */}
       {!isOpen && (
         <motion.button 
           whileHover={{ scale: 1.05 }} 
@@ -136,25 +143,38 @@ export default function ChatWidget() {
         </motion.button>
       )}
 
-      {/* Chat Window Panel */}
+      {/* Chat Window Panel / Right Drawer */}
       <AnimatePresence>
         {isOpen && (
           <motion.div 
-            className="chat-window-panel glass-card"
-            initial={{ opacity: 0, scale: 0.9, y: 50, x: 20 }}
-            animate={{ opacity: 1, scale: 1, y: 0, x: 0 }}
-            exit={{ opacity: 0, scale: 0.9, y: 50, x: 20 }}
-            transition={{ duration: 0.25, ease: 'easeOut' }}
+            className="chat-window-panel"
+            initial={{ opacity: 0, x: 100 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: 100 }}
+            transition={{ type: 'tween', duration: 0.25 }}
           >
             {/* Header */}
             <div className="chat-header">
-              <div>
-                <h3>AI Health Assistant</h3>
-                <span className="chat-status">AI Assistant Online</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div className="chat-avatar-ring">
+                  <Activity size={18} style={{ color: 'var(--accent)' }} />
+                </div>
+                <div>
+                  <h3>AI Health Assistant</h3>
+                  <div className="chat-status-wrapper">
+                    <span className="online-dot"></span>
+                    <span className="chat-status">Online</span>
+                  </div>
+                </div>
               </div>
-              <button className="chat-close-btn" onClick={() => setIsOpen(false)}>
-                <X size={18} />
-              </button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <button className="chat-action-header-btn" onClick={loadHistory} title="Refresh Chat History">
+                  <RefreshCw size={15} />
+                </button>
+                <button className="chat-close-btn" onClick={() => setIsOpen(false)} title="Close Chat">
+                  <X size={18} />
+                </button>
+              </div>
             </div>
 
             {/* Warning Disclaimer Banner */}
@@ -176,9 +196,9 @@ export default function ChatWidget() {
                   <motion.div 
                     key={msg.id} 
                     className={`chat-bubble-row ${msg.role}`}
-                    initial={{ opacity: 0, y: 15 }}
+                    initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.3 }}
+                    transition={{ duration: 0.2 }}
                   >
                     <div className={`chat-bubble ${msg.role}`}>
                       <p className="chat-bubble-text">{msg.content}</p>
@@ -203,7 +223,7 @@ export default function ChatWidget() {
                         style={{
                           width: '6px',
                           height: '6px',
-                          background: 'white',
+                          background: 'var(--accent)',
                           borderRadius: '50%',
                           display: 'inline-block'
                         }}
@@ -227,7 +247,7 @@ export default function ChatWidget() {
               <input
                 type="text"
                 className="input-field chat-input"
-                placeholder="Ask about reports, risk levels..."
+                placeholder="Type your message..."
                 value={inputMsg}
                 onChange={(e) => setInputMsg(e.target.value)}
                 disabled={loading}
