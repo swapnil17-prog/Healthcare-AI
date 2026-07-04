@@ -21,18 +21,19 @@ graph TD
   FastAPI["FastAPI REST API Backend"]
   SQLite["SQLite Database (SQLAlchemy ORM)"]
   ML["Pure-Python ML Risk Service"]
-  Claude["Claude 3.5 Sonnet RAG Chatbot"]
+  LLM["LLM Service (Claude / Groq API)"]
   PDF["ReportLab PDF Summary Service"]
   RuleEngine["Doctor Referral Rule Engine"]
-  TFIDF["TF-IDF Vector Store (RAG)"]
+  EmbedStore["SentenceTransformers Vector Store (RAG)"]
   
   React -->|REST Request with JWT| FastAPI
   FastAPI -->|Query/Persist Data| SQLite
   FastAPI -->|Inference (Pima Dataset)| ML
   FastAPI -->|Check Vitals thresholds| RuleEngine
-  FastAPI -->|Ground Context / Query| Claude
-  FastAPI -->|Search Guidelines| TFIDF
+  FastAPI -->|Ground Context & History / Query| LLM
+  FastAPI -->|Semantic Search Guidelines| EmbedStore
   FastAPI -->|Compile Patient Report| PDF
+  LLM -->|Tool Calls: fetch patient data| SQLite
 ```
 
 ### Operational Workflows
@@ -41,13 +42,54 @@ graph TD
 2. **Patient Risk Prediction Pipeline:** 
    When a user (or their assigned doctor/admin) initiates a risk scan, physiological vitals (Pregnancies, Glucose, Blood Pressure, Insulin, BMI, Age) are submitted. The FastAPI backend triggers the ML service, executing an optimized pure-Python `SimpleLogisticRegression` model. The resulting percentage risk score and log-odds Explainable AI (XAI) feature contributions are calculated, processed through the **Doctor Referral Rule Engine** (to suggest specialists like Endocrinologists, Cardiologists, or Nutritionists), and stored in the database.
 3. **Retrieval-Augmented Generation (RAG) Chatbot:** 
-   A sliding right-side drawer chat widget streams responses from Claude 3.5 Sonnet (accessible for patients). When a patient queries the assistant, the backend retrieves their latest ML prediction metrics and queries a local `TfidfVectorizer` vector store indexing clinical guidelines (normal glucose ranges, BMI definitions) and app guides. This contextual package is injected into the Claude system prompt alongside clinical guardrails to deliver medical explanations without giving direct medical diagnoses.
+   A sliding right-side drawer chat widget streams responses from Claude 3.5 Sonnet or Llama-3.3-70b-versatile (accessible for patients). When a patient queries the assistant, the backend retrieves their latest ML prediction metrics, parses historical records via database function-calling tools, and queries a local `SentenceTransformer` (`all-MiniLM-L6-v2`) vector store indexing clinical guidelines (normal glucose ranges, BMI definitions) and app guides. This contextual package is injected into the LLM system prompt alongside clinical guardrails to deliver medical explanations without giving direct medical diagnoses.
 4. **PDF Generation:** 
    Using the `ReportLab` library, patient demographic details, complete medical history logs, ML prediction history, and rule-based referral recommendations are dynamically compiled into a clean, printable PDF document on demand.
 
 ---
 
-## 2. Comprehensive File-by-File Breakdown
+## 2. Interactive AI Chat & RAG Workflow
+
+The system includes a secure, context-aware AI Health Assistant chatbot that integrates retrieval-augmented generation (RAG), strict safety deflections, dynamic database lookup tools, and multi-LLM API fallbacks.
+
+### Frontend Chat Interface (`ChatWidget.jsx`)
+1. **Drawer State & History Fetching:** The chat widget is rendered as a floating bubble at the bottom right. A custom window event listener (`open-chat`) allows other frontend components (like the sidebar) to trigger the opening of the sliding right-hand drawer panel. Upon opening, the component executes an API call to `GET /api/chat/history` to load the last 30 messages associated with the logged-in user.
+2. **Text Streaming via Server-Sent Events (SSE):** When a user submits a query, the text is instantly rendered in the local chat bubble history with a loading typing animation. The frontend connects to the backend streaming endpoint `/api/chat/stream` using the browser's Fetch API, supplying JWT authorization headers. It parses the incoming stream using a `TextDecoder` and splits the buffer by newline boundaries, extracting JSON chunks prefixed with `data: ` and incrementally appending words to the active response state.
+3. **Scroll Management:** An automatic scrolling anchor (`messagesEndRef`) scrolls the view down smoothly to ensure the latest streamed tokens remain visible to the user.
+
+### Backend Routing and DB Persistence (`chat.py`)
+1. **User Message Storing:** Every query submitted is written to the SQLite `ChatMessage` database table under the user's ID with the role set to `"user"`.
+2. **Safety Pre-check Deflection:** To guarantee user safety and mitigate medical liability, the backend runs a regex scan on incoming message text before passing it to the LLM. It intercepts queries matching keyword patterns for:
+   - **Dosages:** e.g., `dosage`, `dose`, `how many mg`
+   - **Diagnosis:** e.g., `diagnose`, `diagnosis`, `do i have`, `am i diabetic`
+   - **Emergencies:** e.g., `emergency`, `chest pain`
+   - **Prescriptions:** e.g., `prescribe`, `prescription`
+   When triggered, the backend bypasses the LLM APIs completely, returns an immediate static warning deflection advising the user to seek immediate professional medical attention, writes the disclaimer as an `"assistant"` record to the database, and streams it back to the client.
+3. **Database Chat History Loading:** The backend queries the `ChatMessage` table to fetch the 10 most recent messages of the session and appends them to the current query payload as context to enable multi-turn conversations.
+4. **Assistant Message Storing:** Once the full response is generated or streamed, the backend writes the compiled response to the SQLite `ChatMessage` database table under the user's ID with the role set to `"assistant"`.
+
+### Retrieval-Augmented Generation (RAG) (`vector_store.py`)
+1. **Document Loading and Fallbacks:** On startup, the singleton `GuidelineVectorStore` scans the directory `backend/app/data/knowledge_base/` for markdown (`.md`) and text (`.txt`) documents containing clinical advice or app documentation. If the folder is empty or absent, it falls back to a hardcoded array of `GUIDELINES_DOCUMENTS` covering American Diabetes Association (ADA) glucose guidelines, AHA/ACC hypertension rules, WHO BMI classifications, lifestyle/diet advice, and app instructions (uploads, appointments, PDF downloads).
+2. **Semantic Text Chunking:** To fit within LLM context windows and maximize search precision, documents are segmented into smaller text chunks using a sliding window algorithm (chunk size: 300 words, overlap: 50 words).
+3. **Embedding Generation:** The system encodes the corpus chunks using the lightweight SentenceTransformers model `"all-MiniLM-L6-v2"`. This generates 384-dimensional dense vector embeddings representing the semantic meaning of each chunk. The embeddings are pre-normalized, making cosine similarity calculations highly efficient.
+4. **Cosine Similarity Vector Search:** When the user sends a query, the search service encodes the query using the same SentenceTransformers model. It computes cosine similarities via a vector dot product of the query embedding against the corpus embeddings.
+5. **Threshold Filtering:** Matches are filtered using a similarity threshold score of `>= 0.3`. The top 2 matching chunks are formatted and returned as clinical background context.
+
+### LLM Integration, Guardrails, and Tool Calling Loop
+1. **Dynamic Prompt Assembly:** If the user role is `"patient"`, the backend fetches their demographic stats (name, age, gender, height, weight, blood group) from the SQLite database. It compiles these stats alongside the retrieved RAG guidelines chunks and system instructions into a unified system prompt.
+2. **Clinical System Guardrails:** The prompt explicitly commands the model to act as an educational app assistant, state that it is not a doctor, refuse to diagnose, and print the primary disclaimer strictly **only once** at the beginning of the chat session to keep subsequent conversation natural and direct.
+3. **Multi-LLM API Dispatching:**
+   - **Groq API (Llama-3.3-70b-versatile):** If a `GROQ_API_KEY` is detected, the backend issues a request to Groq's OpenAI-compatible completions endpoint. It provides native function calling tools:
+     - `get_full_medical_history(patient_id)`: Fetches SQL records of diseases, diagnoses, medications, and clinical notes.
+     - `get_prediction_history(patient_id)`: Fetches historical ML prediction results, logs, and feature inputs.
+     - `get_appointments(patient_id)`: Fetches upcoming and past booked appointments.
+     If the model issues a tool call, the backend interceptor executes the corresponding SQLAlchemy database query, returns the structured data as a `"tool"` message to the model, and loops until the model outputs a final text answer.
+   - **Anthropic API (Claude 3.5 Sonnet):** If an `ANTHROPIC_API_KEY` is present (and Groq key is absent/fails), the backend uses Anthropic's SDK to stream text directly from Claude 3.5 Sonnet.
+   - **Rule-Based Mock Fallback:** If both LLM endpoints are unavailable or keys are missing, a localized deterministic keyword router (`generate_mock_response`) intercepts the query. It checks for keywords like `history`, `prediction`, `appointment`, or `upload` and dynamically fetches relevant patient records from the SQLite database to answer the query or prints app-usage details.
+
+---
+
+## 3. Comprehensive File-by-File Breakdown
 
 Below is an directory list explaining the role and responsibility of each code file within the workspace.
 
@@ -150,7 +192,7 @@ Each file serves a specific route and has a corresponding CSS file in the same d
 
 ---
 
-## 3. List of Completed Implementations
+## 4. List of Completed Implementations
 
 Here is a summary of the features and engineering work implemented in the project so far:
 
