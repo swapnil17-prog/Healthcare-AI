@@ -392,6 +392,49 @@ export default function Predictions() {
                 </div>
               </div>
 
+              {/* XAI Feature Contributions */}
+              {result.feature_contributions && (
+                <div className="xai-contributions-box">
+                  <h4>AI Prediction Explanations (Log-Odds Impact)</h4>
+                  <p className="xai-subtitle">
+                    How each physiological vital parameter influenced the AI model's final risk score decision.
+                  </p>
+                  <div className="xai-bars-container">
+                    {Object.entries(result.feature_contributions).map(([key, value]) => {
+                      const cleanLabel = {
+                        pregnancies: 'Pregnancies',
+                        glucose: 'Blood Glucose',
+                        blood_pressure: 'Diastolic Blood Pressure',
+                        insulin: 'Insulin Level',
+                        bmi: 'Body Mass Index (BMI)',
+                        age: 'Age'
+                      }[key] || key.replace('_', ' ');
+                      
+                      const isPositive = value >= 0;
+                      const maxVal = Math.max(...Object.values(result.feature_contributions).map(v => Math.abs(v))) || 1.0;
+                      const percentage = Math.min(100, (Math.abs(value) / maxVal) * 100);
+                      
+                      return (
+                        <div key={key} className="xai-bar-row">
+                          <div className="xai-bar-label-group">
+                            <span className="xai-feature-name">{cleanLabel}</span>
+                            <span className={`xai-feature-value ${isPositive ? 'positive' : 'negative'}`}>
+                              {isPositive ? '+' : ''}{value.toFixed(4)} {isPositive ? '(Increases Risk)' : '(Reduces Risk)'}
+                            </span>
+                          </div>
+                          <div className="xai-bar-track">
+                            <div 
+                              className={`xai-bar-fill ${isPositive ? 'positive' : 'negative'}`} 
+                              style={{ width: `${percentage}%` }}
+                            ></div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
               {/* Doctor Recommendations Rules */}
               {result.recommendations && result.recommendations.length > 0 && (
                 <div className="result-doctor-recs-box">
