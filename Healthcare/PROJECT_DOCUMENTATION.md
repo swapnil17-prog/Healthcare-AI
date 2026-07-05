@@ -76,13 +76,13 @@ The system includes a secure, context-aware AI Health Assistant chatbot that int
 5. **Threshold Filtering:** Matches are filtered using a similarity threshold score of `>= 0.3`. The top 2 matching chunks are formatted and returned as clinical background context.
 
 ### LLM Integration, Guardrails, and Tool Calling Loop
-1. **Dynamic Prompt Assembly:** If the user role is `"patient"`, the backend fetches their demographic stats (name, age, gender, height, weight, blood group) from the SQLite database. It compiles these stats alongside the retrieved RAG guidelines chunks and system instructions into a unified system prompt.
+1. **Dynamic Prompt Assembly:** If the user role is `"patient"`, the backend fetches their demographic stats (name, age, gender, height, weight, blood group) from the SQLite database. It compiles these stats alongside the retrieved RAG guidelines chunks, system instructions, and the current local server time context (`[CURRENT DATE & TIME]`) into a unified system prompt to enable temporal awareness.
 2. **Clinical System Guardrails:** The prompt explicitly commands the model to act as an educational app assistant, state that it is not a doctor, refuse to diagnose, and print the primary disclaimer strictly **only once** at the beginning of the chat session to keep subsequent conversation natural and direct.
 3. **Multi-LLM API Dispatching:**
    - **Groq API (Llama-3.3-70b-versatile):** If a `GROQ_API_KEY` is detected, the backend issues a request to Groq's OpenAI-compatible completions endpoint. It provides native function calling tools:
      - `get_full_medical_history(patient_id)`: Fetches SQL records of diseases, diagnoses, medications, and clinical notes.
      - `get_prediction_history(patient_id)`: Fetches historical ML prediction results, logs, and feature inputs.
-     - `get_appointments(patient_id)`: Fetches upcoming and past booked appointments.
+     - `get_appointments(patient_id)`: Fetches appointments dynamically tagged with `[PAST]` or `[UPCOMING]` relative to `datetime.now()` to ensure the LLM distinguishes them.
      If the model issues a tool call, the backend interceptor executes the corresponding SQLAlchemy database query, returns the structured data as a `"tool"` message to the model, and loops until the model outputs a final text answer.
    - **Anthropic API (Claude 3.5 Sonnet):** If an `ANTHROPIC_API_KEY` is present (and Groq key is absent/fails), the backend uses Anthropic's SDK to stream text directly from Claude 3.5 Sonnet.
    - **Rule-Based Mock Fallback:** If both LLM endpoints are unavailable or keys are missing, a localized deterministic keyword router (`generate_mock_response`) intercepts the query. It checks for keywords like `history`, `prediction`, `appointment`, or `upload` and dynamically fetches relevant patient records from the SQLite database to answer the query or prints app-usage details.
@@ -184,7 +184,7 @@ Each file serves a specific route and has a corresponding CSS file in the same d
 *   [Login.jsx](./frontend/src/pages/Login.jsx) & `Login.css` – Login and registration forms styled in split-screen format, containing a floating AI robot panel on the left and form credentials card on the right, integrated with enter and layout transitions.
 *   [Dashboard.jsx](./frontend/src/pages/Dashboard.jsx) – A routing gatekeeper page that checks the user's role and renders either the `PatientDashboard` or `DoctorDashboard`.
 *   [PatientDashboard.jsx](./frontend/src/pages/PatientDashboard.jsx) & `PatientDashboard.css` – The patient hub. Includes dynamic stat metric boxes, profile update forms, health target tracker meters, appointments summary lists, recommendations panels, and clinical histories log.
-*   [PatientRecords.jsx](./frontend/src/pages/PatientRecords.jsx) – Extracted portal page separating patient upcoming appointments with inline bookers and complete clinical medical histories.
+*   [PatientRecords.jsx](./frontend/src/pages/PatientRecords.jsx) – Extracted portal page separating patient appointments into chronologically sorted, interactive tabs (Upcoming vs. History), incorporating inline appointment booking, and corrected label date spacing.
 *   [DoctorDashboard.jsx](./frontend/src/pages/DoctorDashboard.jsx) & `DoctorDashboard.css` – The clinician workspace. Displays summary metrics (population KPIs), a pie chart of risk severity distributions, average population risk trends, high-risk critical alerts, and a patient cohort correlation scatterplot.
 *   [Patients.jsx](./frontend/src/pages/Patients.jsx) & `Patients.css` – The directory roster. Allows doctors and admins to browse patients using table structures, tab selections (All/High/Medium/Low), and name search fields, alongside file uploads and medical logs.
 *   [Predictions.jsx](./frontend/src/pages/Predictions.jsx) & `Predictions.css` – The screening form. Allows users to submit vital parameters using a two-column input grid, run the risk model, and display recommendations with circular score percentages.
@@ -214,6 +214,7 @@ Here is a summary of the features and engineering work implemented in the projec
 16. **Patient Cohort Scatterplot**: Added a Glucose vs. BMI correlation scatterplot inside [DoctorDashboard.jsx](./frontend/src/pages/DoctorDashboard.jsx) color-coded by risk severity tiers.
 17. **Health Target Trackers**: Created interactive health goals tracking progress meters using `localStorage` state persistence for patient self-monitoring.
 18. **Polished UI Animations (Framer Motion)**: Added `framer-motion` dependency, implementing route transitions, staggered card entrances, radial loading risk gauges, login panel form toggles, sliding alerts, bouncing typing indicator dots, and tactile button hover/tap scaling actions.
+19. **Explainable AI (XAI) UI & Chat Temporal Integration**: Rendered the backend ML log-odds contributions visually as custom positive/negative colored horizontal bar charts in [Predictions.jsx](./frontend/src/pages/Predictions.jsx) scaled proportionally. Injected local server time context (`[CURRENT DATE & TIME]`) and dynamically tagged appointments as `[PAST]` or `[UPCOMING]` to prevent chatbot temporal hallucinations. Separated patient records into tabbed chronological lists (Upcoming vs. History) and resolved date text squishing issues.
 
 ---
 

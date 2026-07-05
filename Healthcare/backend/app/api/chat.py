@@ -92,9 +92,11 @@ def get_appointments(patient_id: int, db: Session) -> str:
     if not records:
         return "No appointments found."
     result = []
+    now = datetime.now()
     for r in records:
         doctor_name = r.doctor.name if r.doctor else "Unknown Doctor"
-        result.append(f"- Scheduled: {r.scheduled_at.strftime('%Y-%m-%d %H:%M') if r.scheduled_at else 'N/A'}, Doctor: {doctor_name}, Status: {r.status}, Notes: {r.notes or 'None'}")
+        time_label = "[UPCOMING]" if r.scheduled_at >= now else "[PAST]"
+        result.append(f"- {time_label} Scheduled: {r.scheduled_at.strftime('%Y-%m-%d %H:%M') if r.scheduled_at else 'N/A'}, Doctor: {doctor_name}, Status: {r.status}, Notes: {r.notes or 'None'}")
     return "\n".join(result)
 
 # Tool schema mapping for Groq / OpenAI-compatible API
@@ -246,6 +248,9 @@ def send_chat_message(
         "You have tools to fetch patient medical history, prediction history, and appointments. Call them when needed. "
         "Always use the current user's Patient Profile ID to call these tools.\n"
     )
+    # Inject current date and time for temporal awareness
+    system_prompt += f"\n[CURRENT DATE & TIME]:\n- {datetime.now().strftime('%A, %B %d, %Y, %I:%M %p')}\n"
+    
     if patient_context:
         system_prompt += patient_context
     if guidelines_context:
@@ -456,6 +461,9 @@ def send_chat_message_stream(
         "You have tools to fetch patient medical history, prediction history, and appointments. Call them when needed. "
         "Always use the current user's Patient Profile ID to call these tools.\n"
     )
+    # Inject current date and time for temporal awareness
+    system_prompt += f"\n[CURRENT DATE & TIME]:\n- {datetime.now().strftime('%A, %B %d, %Y, %I:%M %p')}\n"
+    
     if patient_context:
         system_prompt += patient_context
     if guidelines_context:
@@ -632,7 +640,7 @@ def generate_mock_response(user_message: str, patient_id: Optional[int], db: Ses
     elif "appointment" in msg_lower or "schedule" in msg_lower or "book" in msg_lower:
         if patient_id:
             appts = get_appointments(patient_id, db)
-            response += f"Here are your upcoming appointments:\n{appts}"
+            response += f"Here is your appointment history:\n{appts}"
         else:
             response += "I couldn't find a patient profile associated with your account to retrieve your appointments."
     elif "upload" in msg_lower or "report" in msg_lower:

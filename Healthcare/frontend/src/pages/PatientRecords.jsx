@@ -31,10 +31,34 @@ export default function PatientRecords() {
   const [showBookForm, setShowBookForm] = useState(false);
   const [bookingLoading, setBookingLoading] = useState(false);
 
+  const [apptTab, setApptTab] = useState('upcoming');
+
   // Filter patient's own appointments
   const myAppointments = patient
     ? appointments.filter((appt) => appt.patient_id === patient.id)
     : [];
+
+  const now = new Date();
+  
+  // Sort upcoming appointments ascending (soonest first)
+  const upcomingAppts = myAppointments
+    .filter((appt) => {
+      const isFuture = new Date(appt.scheduled_at) >= now;
+      const isActive = appt.status !== 'Completed' && appt.status !== 'Cancelled';
+      return isFuture && isActive;
+    })
+    .sort((a, b) => new Date(a.scheduled_at) - new Date(b.scheduled_at));
+
+  // Sort past appointments descending (most recent first)
+  const pastAppts = myAppointments
+    .filter((appt) => {
+      const isPast = new Date(appt.scheduled_at) < now;
+      const isInactive = appt.status === 'Completed' || appt.status === 'Cancelled';
+      return isPast || isInactive;
+    })
+    .sort((a, b) => new Date(b.scheduled_at) - new Date(a.scheduled_at));
+
+  const activeAppts = apptTab === 'upcoming' ? upcomingAppts : pastAppts;
 
   const handleScheduleAppt = async (e) => {
     e.preventDefault();
@@ -102,10 +126,49 @@ export default function PatientRecords() {
           whileHover={{ scale: 1.02, boxShadow: '0 8px 30px rgba(99, 102, 241, 0.15)', borderColor: 'rgba(99,102,241,0.2)' }}
         >
           <div className="card-title-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Calendar size={18} className="card-icon" />
-              <h3>Upcoming Appointments</h3>
-            </div>
+            {!showBookForm ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                <div 
+                  onClick={() => setApptTab('upcoming')} 
+                  style={{ 
+                    cursor: 'pointer', 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    gap: '6px',
+                    borderBottom: apptTab === 'upcoming' ? '2px solid var(--accent)' : '2px solid transparent',
+                    paddingBottom: '4px',
+                    fontWeight: apptTab === 'upcoming' ? '700' : '500',
+                    color: apptTab === 'upcoming' ? 'white' : 'var(--text-secondary)',
+                    transition: 'all 0.2s ease'
+                  }}
+                >
+                  <Calendar size={16} />
+                  <span style={{ fontSize: '13.5px' }}>Upcoming</span>
+                </div>
+                <div 
+                  onClick={() => setApptTab('history')} 
+                  style={{ 
+                    cursor: 'pointer', 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    gap: '6px',
+                    borderBottom: apptTab === 'history' ? '2px solid var(--accent)' : '2px solid transparent',
+                    paddingBottom: '4px',
+                    fontWeight: apptTab === 'history' ? '700' : '500',
+                    color: apptTab === 'history' ? 'white' : 'var(--text-secondary)',
+                    transition: 'all 0.2s ease'
+                  }}
+                >
+                  <Clock size={16} />
+                  <span style={{ fontSize: '13.5px' }}>History</span>
+                </div>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Calendar size={18} className="card-icon" />
+                <h3>Book Consultation</h3>
+              </div>
+            )}
             {!showBookForm && (
               <button onClick={() => setShowBookForm(true)} className="btn btn-secondary" style={{ padding: '6px 12px', fontSize: '12px' }}>
                 + Book New
@@ -115,14 +178,16 @@ export default function PatientRecords() {
           
           {!showBookForm ? (
             <div className="list-body">
-              {myAppointments.length === 0 ? (
-                <p className="empty-text">No scheduled appointments.</p>
+              {activeAppts.length === 0 ? (
+                <p className="empty-text">
+                  {apptTab === 'upcoming' ? 'No upcoming scheduled appointments.' : 'No past or completed appointments.'}
+                </p>
               ) : (
-                myAppointments.map((appt) => (
+                activeAppts.map((appt) => (
                   <div key={appt.id} className="list-item" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '8px' }}>
                     <div style={{ display: 'flex', width: '100%', justifyContent: 'space-between', alignItems: 'center' }}>
                       <div className="item-meta">
-                        <span className="item-title">Consultation Call</span>
+                        <span className="item-title" style={{ marginRight: '6px' }}>Consultation Call -</span>
                         <span className="item-date">
                           {new Date(appt.scheduled_at).toLocaleDateString()} at {new Date(appt.scheduled_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                         </span>
