@@ -1,8 +1,10 @@
 import os
+# Note: Refresh token cookie configurations are defined and handled in app/api/auth.py
 from datetime import datetime, timedelta
 from typing import Any, Union
 import bcrypt
 from jose import jwt
+import uuid
 
 # Secret keys for JWT signing
 SECRET_KEY = os.getenv("JWT_SECRET_KEY", "super_secret_key_for_development_only_12345")
@@ -32,7 +34,13 @@ def create_access_token(subject: Union[str, Any], role: str, expires_delta: time
     else:
         expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     
-    to_encode = {"exp": expire, "sub": str(subject), "role": role}
+    to_encode = {
+        "exp": expire, 
+        "sub": str(subject), 
+        "role": role,
+        "jti": str(uuid.uuid4()),
+        "iat": datetime.utcnow()
+    }
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
 
@@ -42,7 +50,14 @@ def create_refresh_token(subject: Union[str, Any], role: str, expires_delta: tim
     else:
         expire = datetime.utcnow() + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
     
-    to_encode = {"exp": expire, "sub": str(subject), "role": role, "refresh": True}
+    to_encode = {
+        "exp": expire, 
+        "sub": str(subject), 
+        "role": role, 
+        "refresh": True,
+        "jti": str(uuid.uuid4()),
+        "iat": datetime.utcnow()
+    }
     encoded_jwt = jwt.encode(to_encode, REFRESH_SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
 

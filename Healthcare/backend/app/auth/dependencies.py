@@ -1,8 +1,9 @@
+from datetime import datetime
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from app.database.database import get_db
-from app.models.models import User
+from app.models.models import User, RevokedToken
 from app.auth.security import decode_access_token
 
 security_scheme = HTTPBearer()
@@ -20,6 +21,16 @@ def get_current_user(
             detail="Could not validate credentials",
             headers={"WWW-Authenticate": "Bearer"},
         )
+        
+    jti = payload.get("jti")
+    if jti:
+        revoked = db.query(RevokedToken).filter(RevokedToken.token_jti == jti).first()
+        if revoked:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Token has been revoked",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
     
     email: str = payload.get("sub")
     if email is None:
@@ -36,6 +47,16 @@ def get_current_user(
             detail="User not found in system",
             headers={"WWW-Authenticate": "Bearer"},
         )
+        
+    iat = payload.get("iat")
+    if iat:
+        token_issued_at = datetime.utcfromtimestamp(iat)
+        if user.suspended_at and token_issued_at < user.suspended_at:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Account suspended",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
     
     return user
 

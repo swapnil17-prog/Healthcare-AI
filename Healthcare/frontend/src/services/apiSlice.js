@@ -46,7 +46,7 @@ const baseQueryWithReauth = async (args, api, extraOptions) => {
 export const apiSlice = createApi({
   reducerPath: 'api',
   baseQuery: baseQueryWithReauth,
-  tagTypes: ['Patients', 'MedicalHistory', 'Appointments', 'Predictions', 'Reports', 'Chat'],
+  tagTypes: ['Patients', 'MedicalHistory', 'Appointments', 'Predictions', 'Reports', 'Chat', 'AdminStats', 'AdminUsers', 'Assignments'],
   endpoints: (builder) => ({
     getMe: builder.query({
       query: () => '/auth/me',
@@ -163,6 +163,55 @@ export const apiSlice = createApi({
       query: () => '/chat/history',
       providesTags: ['Chat'],
     }),
+    getAdminStats: builder.query({
+      query: () => '/admin/stats',
+      providesTags: ['AdminStats'],
+    }),
+    getAdminUsers: builder.query({
+      query: ({ role, search } = {}) => {
+        let url = '/admin/users';
+        const params = [];
+        if (role) params.push(`role=${role}`);
+        if (search) params.push(`search=${encodeURIComponent(search)}`);
+        if (params.length) url += `?${params.join('&')}`;
+        return url;
+      },
+      providesTags: ['AdminUsers'],
+    }),
+    createAdminUser: builder.mutation({
+      query: (data) => ({
+        url: '/admin/users',
+        method: 'POST',
+        body: data,
+      }),
+      invalidatesTags: ['AdminUsers', 'AdminStats', 'Patients'],
+    }),
+    toggleUserStatus: builder.mutation({
+      query: (id) => ({
+        url: `/admin/users/${id}/status`,
+        method: 'PATCH',
+      }),
+      invalidatesTags: ['AdminUsers'],
+    }),
+    deleteUser: builder.mutation({
+      query: (id) => ({
+        url: `/admin/users/${id}`,
+        method: 'DELETE',
+      }),
+      invalidatesTags: ['AdminUsers', 'AdminStats', 'Patients'],
+    }),
+    getAssignments: builder.query({
+      query: () => '/admin/assignments',
+      providesTags: ['Assignments'],
+    }),
+    createAssignment: builder.mutation({
+      query: (data) => ({
+        url: '/admin/assignments',
+        method: 'POST',
+        body: data,
+      }),
+      invalidatesTags: ['Assignments', 'AdminUsers'],
+    }),
   }),
 });
 
@@ -212,4 +261,11 @@ export const {
   useGetReportsQuery,
   useUploadReportMutation,
   useGetChatHistoryQuery,
+  useGetAdminStatsQuery,
+  useGetAdminUsersQuery,
+  useCreateAdminUserMutation,
+  useToggleUserStatusMutation,
+  useDeleteUserMutation,
+  useGetAssignmentsQuery,
+  useCreateAssignmentMutation,
 } = apiSlice;

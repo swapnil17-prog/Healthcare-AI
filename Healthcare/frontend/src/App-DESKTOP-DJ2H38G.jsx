@@ -15,8 +15,7 @@ import {
   Menu,
   X,
   Mail,
-  Lock,
-  ShieldCheck
+  Lock
 } from 'lucide-react';
 import { logout } from './redux/authSlice';
 import { 
@@ -141,12 +140,6 @@ export default function App() {
       path: user?.role === 'patient' ? '/records' : '/patients',
       icon: ClipboardCheck,
       roles: ['patient', 'doctor', 'admin']
-    },
-    {
-      name: 'Admin Panel',
-      path: '/dashboard',
-      icon: ShieldCheck,
-      roles: ['admin']
     }
   ];
 

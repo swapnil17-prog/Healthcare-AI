@@ -50,3 +50,37 @@ class PatientOut(PatientBase):
 
     class Config:
         from_attributes = True
+
+
+# --- Admin Panel Schemas ---
+class AdminUserCreate(BaseModel):
+    full_name: str
+    email: EmailStr
+    password: str = Field(..., min_length=6, description="Password must be at least 6 characters long")
+    role: str = Field(..., description="Role must be patient or doctor")
+
+class AdminUserResponse(BaseModel):
+    id: int
+    full_name: str
+    email: EmailStr
+    role: str
+    is_active: bool
+    created_at: datetime
+    risk_score: Optional[float] = None
+    prediction_date: Optional[datetime] = None
+    patient_count: Optional[int] = None
+
+    class Config:
+        from_attributes = True
+
+class AdminStatsResponse(BaseModel):
+    total_patients: int
+    total_doctors: int
+    total_predictions: int
+    high_risk_count: int
+    total_appointments_today: int
+    total_reports: int
+
+class AdminAssignRequest(BaseModel):
+    patient_id: int
+    doctor_id: int

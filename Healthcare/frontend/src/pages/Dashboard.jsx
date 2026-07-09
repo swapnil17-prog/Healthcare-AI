@@ -2,6 +2,7 @@ import React from 'react';
 import { useSelector } from 'react-redux';
 import PatientDashboard from './PatientDashboard';
 import DoctorDashboard from './DoctorDashboard';
+import AdminDashboard from './AdminDashboard';
 
 export default function Dashboard() {
   const { user } = useSelector((state) => state.auth);
@@ -10,10 +11,8 @@ export default function Dashboard() {
     return <div style={{ padding: '40px', textAlign: 'center' }}>Loading user profile...</div>;
   }
 
-  if (user.role === 'patient') {
-    return <PatientDashboard />;
-  }
-
-  // Doctor or Admin roles share the Doctor/Admin dashboard
-  return <DoctorDashboard />;
+  const role = user.role;
+  if (role === 'admin') return <AdminDashboard />;
+  if (role === 'doctor') return <DoctorDashboard />;
+  if (role === 'patient') return <PatientDashboard />;
 }
