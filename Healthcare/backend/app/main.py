@@ -15,8 +15,8 @@ from sqlalchemy import text
 from app.core.rate_limiter import limiter
 from datetime import datetime
 from app.database.database import engine, SessionLocal
-from app.models.models import Base, RevokedToken
-from app.api import auth, patients, appointments, medical_history, predictions, reports, chat, pdf, admin
+from app.models.models import Base, RevokedToken, HealthNudge
+from app.api import auth, patients, appointments, medical_history, predictions, reports, chat, pdf, admin, health_nudges
 
 # Initialize Database tables
 Base.metadata.create_all(bind=engine)
@@ -134,6 +134,33 @@ app.include_router(reports.router, prefix="/api")
 app.include_router(chat.router, prefix="/api")
 app.include_router(pdf.router, prefix="/api")
 app.include_router(admin.router, prefix="/api")
+app.include_router(health_nudges.router, prefix="/api")
+
+# APScheduler Background Task Setup
+from apscheduler.schedulers.background import BackgroundScheduler
+from app.services.health_nudges import run_all_health_nudge_checks
+
+scheduler = BackgroundScheduler()
+
+def run_daily_nudge_job():
+    db = SessionLocal()
+    try:
+        run_all_health_nudge_checks(db)
+    except Exception as e:
+        print(f"Error in daily nudge task: {e}")
+    finally:
+        db.close()
+
+@app.on_event("startup")
+def start_scheduler():
+    if not scheduler.running:
+        scheduler.add_job(run_daily_nudge_job, "cron", hour=9, minute=0)
+        scheduler.start()
+
+@app.on_event("shutdown")
+def stop_scheduler():
+    if scheduler.running:
+        scheduler.shutdown(wait=False)
 
 
 

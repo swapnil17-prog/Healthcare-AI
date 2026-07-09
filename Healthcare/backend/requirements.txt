@@ -19,3 +19,4 @@ requests>=2.31.0
 slowapi>=0.1.9
 sentence-transformers
 pypdf>=6.0.0
+apscheduler

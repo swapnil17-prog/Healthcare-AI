@@ -46,7 +46,7 @@ const baseQueryWithReauth = async (args, api, extraOptions) => {
 export const apiSlice = createApi({
   reducerPath: 'api',
   baseQuery: baseQueryWithReauth,
-  tagTypes: ['Patients', 'MedicalHistory', 'Appointments', 'Predictions', 'Reports', 'Chat', 'AdminStats', 'AdminUsers', 'Assignments'],
+  tagTypes: ['Patients', 'MedicalHistory', 'Appointments', 'Predictions', 'Reports', 'Chat', 'AdminStats', 'AdminUsers', 'Assignments', 'HealthNudges'],
   endpoints: (builder) => ({
     getMe: builder.query({
       query: () => '/auth/me',
@@ -145,10 +145,48 @@ export const apiSlice = createApi({
       }),
       invalidatesTags: ['Predictions'],
     }),
+    getRiskForecast: builder.query({
+      query: ({ monthsAhead = 3, patientId } = {}) => {
+        let url = `/predictions/forecast?months_ahead=${monthsAhead}`;
+        if (patientId) url += `&patient_id=${patientId}`;
+        return url;
+      },
+      providesTags: ['Predictions'],
+    }),
     
     getReports: builder.query({
       query: (patientId) => `/patients/${patientId}/reports`,
       providesTags: ['Reports'],
+    }),
+    getHealthNudges: builder.query({
+      query: ({ status, limit, patientId } = {}) => {
+        let url = `/health-nudges?limit=${limit || 20}`;
+        if (status) url += `&status=${status}`;
+        if (patientId) url += `&patient_id=${patientId}`;
+        return url;
+      },
+      providesTags: ['HealthNudges'],
+    }),
+    markHealthNudgeRead: builder.mutation({
+      query: (id) => ({
+        url: `/health-nudges/${id}/read`,
+        method: 'PATCH',
+      }),
+      invalidatesTags: ['HealthNudges'],
+    }),
+    dismissHealthNudge: builder.mutation({
+      query: (id) => ({
+        url: `/health-nudges/${id}/dismiss`,
+        method: 'PATCH',
+      }),
+      invalidatesTags: ['HealthNudges'],
+    }),
+    runNudgeChecks: builder.mutation({
+      query: () => ({
+        url: '/health-nudges/run-checks',
+        method: 'POST',
+      }),
+      invalidatesTags: ['HealthNudges'],
     }),
     uploadReport: builder.mutation({
       query: ({ patientId, formData }) => ({
@@ -162,6 +200,13 @@ export const apiSlice = createApi({
     getChatHistory: builder.query({
       query: () => '/chat/history',
       providesTags: ['Chat'],
+    }),
+    clearChatHistory: builder.mutation({
+      query: () => ({
+        url: '/chat/history',
+        method: 'DELETE',
+      }),
+      invalidatesTags: ['Chat'],
     }),
     getAdminStats: builder.query({
       query: () => '/admin/stats',
@@ -258,9 +303,11 @@ export const {
   useGetPredictionsQuery,
   useLazyGetPredictionsQuery,
   useRunPredictionMutation,
+  useGetRiskForecastQuery,
   useGetReportsQuery,
   useUploadReportMutation,
   useGetChatHistoryQuery,
+  useClearChatHistoryMutation,
   useGetAdminStatsQuery,
   useGetAdminUsersQuery,
   useCreateAdminUserMutation,
@@ -268,4 +315,8 @@ export const {
   useDeleteUserMutation,
   useGetAssignmentsQuery,
   useCreateAssignmentMutation,
+  useGetHealthNudgesQuery,
+  useMarkHealthNudgeReadMutation,
+  useDismissHealthNudgeMutation,
+  useRunNudgeChecksMutation,
 } = apiSlice;

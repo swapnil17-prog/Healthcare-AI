@@ -7,7 +7,8 @@ import {
   useGetAppointmentsQuery,
   useGetDoctorsQuery,
   useGetMedicalHistoryQuery,
-  useCreateAppointmentMutation
+  useCreateAppointmentMutation,
+  useGetReportsQuery
 } from '../services/apiSlice';
 import './PatientDashboard.css';
 
@@ -21,6 +22,7 @@ export default function PatientRecords() {
   const { data: appointments = [], isLoading: isApptsLoading } = useGetAppointmentsQuery();
   const { data: doctors = [], isLoading: isDocsLoading } = useGetDoctorsQuery();
   const { data: medicalHistory = [], isLoading: isHistoryLoading } = useGetMedicalHistoryQuery(patient?.id, { skip: !patient });
+  const { data: reports = [], isLoading: isReportsLoading } = useGetReportsQuery(patient?.id, { skip: !patient });
   
   const [createAppointment] = useCreateAppointmentMutation();
 
@@ -220,53 +222,58 @@ export default function PatientRecords() {
               )}
             </div>
           ) : (
-            <form onSubmit={handleScheduleAppt} className="booking-form-inline" style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              <div className="form-group">
-                <label className="input-label" style={{ fontSize: '10px' }}>Select Doctor</label>
-                <select
-                  className="input-field select-field"
-                  value={selectedDoctorId}
-                  onChange={(e) => setSelectedDoctorId(e.target.value)}
-                  required
-                  style={{ padding: '8px 12px', fontSize: '13px' }}
-                >
-                  <option value="">-- Choose Doctor --</option>
-                  {doctors.map((d) => (
-                    <option key={d.id} value={d.id}>{d.name}</option>
-                  ))}
-                </select>
+            <div style={{ display: 'flex', gap: '24px', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap' }}>
+              <form onSubmit={handleScheduleAppt} className="booking-form-inline" style={{ flex: 1, minWidth: '240px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <div className="form-group">
+                  <label className="input-label" style={{ fontSize: '10px' }}>Select Doctor</label>
+                  <select
+                    className="input-field select-field"
+                    value={selectedDoctorId}
+                    onChange={(e) => setSelectedDoctorId(e.target.value)}
+                    required
+                    style={{ padding: '8px 12px', fontSize: '13px' }}
+                  >
+                    <option value="">-- Choose Doctor --</option>
+                    {doctors.map((d) => (
+                      <option key={d.id} value={d.id}>{d.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label className="input-label" style={{ fontSize: '10px' }}>Date & Time</label>
+                  <input
+                    type="datetime-local"
+                    className="input-field"
+                    value={scheduledAt}
+                    onChange={(e) => setScheduledAt(e.target.value)}
+                    required
+                    style={{ padding: '8px 12px', fontSize: '13px' }}
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="input-label" style={{ fontSize: '10px' }}>Notes</label>
+                  <input
+                    type="text"
+                    className="input-field"
+                    value={apptNotes}
+                    onChange={(e) => setApptNotes(e.target.value)}
+                    placeholder="Need diabetes screening..."
+                    style={{ padding: '8px 12px', fontSize: '13px' }}
+                  />
+                </div>
+                <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
+                  <button type="submit" className="btn btn-primary" disabled={bookingLoading} style={{ flex: 1, padding: '8px 12px', fontSize: '13px' }}>
+                    {bookingLoading ? 'Booking...' : 'Schedule'}
+                  </button>
+                  <button type="button" className="btn btn-secondary" onClick={() => setShowBookForm(false)} style={{ padding: '8px 12px', fontSize: '13px' }}>
+                    Cancel
+                  </button>
+                </div>
+              </form>
+              <div className="scheduling-illust-wrapper" style={{ width: '160px', height: '140px', display: 'flex', justifyContent: 'center', alignItems: 'center', flexShrink: 0 }}>
+                <img src="/scheduling_illust.jpg" alt="Schedule Illustration" style={{ width: '100%', height: '100%', objectFit: 'contain', borderRadius: '8px' }} />
               </div>
-              <div className="form-group">
-                <label className="input-label" style={{ fontSize: '10px' }}>Date & Time</label>
-                <input
-                  type="datetime-local"
-                  className="input-field"
-                  value={scheduledAt}
-                  onChange={(e) => setScheduledAt(e.target.value)}
-                  required
-                  style={{ padding: '8px 12px', fontSize: '13px' }}
-                />
-              </div>
-              <div className="form-group">
-                <label className="input-label" style={{ fontSize: '10px' }}>Notes</label>
-                <input
-                  type="text"
-                  className="input-field"
-                  value={apptNotes}
-                  onChange={(e) => setApptNotes(e.target.value)}
-                  placeholder="Need diabetes screening..."
-                  style={{ padding: '8px 12px', fontSize: '13px' }}
-                />
-              </div>
-              <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
-                <button type="submit" className="btn btn-primary" disabled={bookingLoading} style={{ flex: 1, padding: '8px 12px', fontSize: '13px' }}>
-                  {bookingLoading ? 'Booking...' : 'Schedule'}
-                </button>
-                <button type="button" className="btn btn-secondary" onClick={() => setShowBookForm(false)} style={{ padding: '8px 12px', fontSize: '13px' }}>
-                  Cancel
-                </button>
-              </div>
-            </form>
+            </div>
           )}
         </motion.div>
 
@@ -301,6 +308,64 @@ export default function PatientRecords() {
                 </div>
               ))
             )}
+          </div>
+        </motion.div>
+
+        {/* Diagnostic Reports Portal */}
+        <motion.div 
+          className="glass-card grid-card reports-portal-card" 
+          style={{ gridColumn: 'span 12', marginTop: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '32px', flexWrap: 'wrap' }}
+          variants={{
+            hidden: { opacity: 0, y: 15 },
+            show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: 'easeOut' } }
+          }}
+          whileHover={{ scale: 1.01, boxShadow: '0 8px 30px rgba(99, 102, 241, 0.12)', borderColor: 'rgba(99,102,241,0.15)' }}
+        >
+          <div style={{ flex: 1, minWidth: '300px' }}>
+            <div className="card-title-row" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+              <FileText size={18} className="card-icon" style={{ color: 'var(--accent)' }} />
+              <h3>Uploaded Diagnostic Reports</h3>
+            </div>
+            
+            {isReportsLoading ? (
+              <p className="empty-text">Loading diagnostic reports...</p>
+            ) : reports.length === 0 ? (
+              <p className="empty-text">No diagnostic report documents uploaded to your clinical file yet. Please contact your physician to upload copies.</p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                {reports.map((r) => (
+                  <div 
+                    key={r.id} 
+                    style={{ 
+                      display: 'flex', 
+                      justifyContent: 'space-between', 
+                      alignItems: 'center', 
+                      background: 'rgba(255, 255, 255, 0.02)', 
+                      border: '1px solid var(--border)', 
+                      padding: '12px 16px', 
+                      borderRadius: '8px' 
+                    }}
+                  >
+                    <div>
+                      <span style={{ fontSize: '13px', fontWeight: '700', color: 'var(--text-primary)', display: 'block' }}>{r.report_type}</span>
+                      <span style={{ fontSize: '11px', color: 'hsl(var(--text-muted))' }}>Uploaded on {new Date(r.uploaded_at).toLocaleDateString()}</span>
+                    </div>
+                    <a 
+                      href={`http://127.0.0.1:8000/api/reports/${r.id}/download`} 
+                      className="btn btn-secondary" 
+                      style={{ padding: '6px 12px', fontSize: '11px', textDecoration: 'none' }}
+                      download
+                    >
+                      Download {r.file_path.split('.').pop().toUpperCase()}
+                    </a>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          <div style={{ width: '220px', height: '160px', flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '12px' }}>
+            <img src="/report_illust.jpg" alt="PDF Report Illustration" style={{ width: '100%', height: '120px', objectFit: 'contain', borderRadius: '8px' }} />
+            <span style={{ fontSize: '11.5px', color: 'var(--text-secondary)', textAlign: 'center', fontWeight: '500' }}>Secure Diagnostic Records</span>
           </div>
         </motion.div>
       </motion.div>

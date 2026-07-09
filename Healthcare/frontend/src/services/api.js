@@ -283,6 +283,14 @@ export const api = {
     return res.json();
   },
 
+  clearChatHistory: async () => {
+    const res = await customFetch(`${BASE_URL}/chat/history`, {
+      method: 'DELETE',
+    });
+    if (!res.ok) throw new Error('Failed to clear chat history');
+    return res.json();
+  },
+
   sendChatMessage: async (message) => {
     const res = await customFetch(`${BASE_URL}/chat`, {
       method: 'POST',

@@ -1,7 +1,7 @@
 import React from 'react';
-import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, Legend, CartesianGrid } from 'recharts';
+import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, Legend, CartesianGrid, ReferenceLine } from 'recharts';
 
-export default function TrendChart({ predictions = [] }) {
+export default function TrendChart({ predictions = [], forecast = null }) {
   if (!predictions || !Array.isArray(predictions) || predictions.length === 0) {
     return (
       <div style={{ padding: '40px 20px', textAlign: 'center', color: 'hsl(var(--text-muted))' }}>
@@ -10,15 +10,35 @@ export default function TrendChart({ predictions = [] }) {
     );
   }
 
-  // Format data for Recharts
-  const data = predictions
+  // Format historical data
+  const historicalData = predictions
     .map((p) => ({
       date: new Date(p.created_at).toLocaleDateString([], { month: 'short', day: 'numeric' }),
       'Risk Score (%)': p.risk_score,
       'Glucose (mg/dL)': p.input_features?.glucose || 0,
       'BMI': p.input_features?.bmi || 0,
+      projected_risk: null,
     }))
     .slice(-10); // Show last 10 screenings
+
+  let data = [...historicalData];
+
+  // Merge projected scores if available
+  if (forecast && forecast.projected_scores && forecast.projected_scores.length > 0) {
+    const projectedData = forecast.projected_scores.map((item) => ({
+      date: new Date(item.date).toLocaleDateString([], { month: 'short', day: 'numeric' }),
+      'Risk Score (%)': null,
+      'Glucose (mg/dL)': null,
+      'BMI': null,
+      projected_risk: item.risk_score,
+    }));
+    data = [...data, ...projectedData];
+  }
+
+  // Use the last historical prediction date as the "Today" vertical reference anchor
+  const todayFormatted = historicalData.length > 0
+    ? historicalData[historicalData.length - 1].date
+    : new Date().toLocaleDateString([], { month: 'short', day: 'numeric' });
 
   return (
     <div className="recharts-wrapper" style={{ width: '100%', height: '280px', marginTop: '16px' }}>
@@ -60,6 +80,16 @@ export default function TrendChart({ predictions = [] }) {
           />
           <Line
             type="monotone"
+            dataKey="projected_risk"
+            stroke="#EE5D50"
+            strokeWidth={2}
+            strokeDasharray="6 3"
+            dot={{ r: 4, fill: "#EE5D50" }}
+            name="Projected Risk"
+            connectNulls={false}
+          />
+          <Line
+            type="monotone"
             dataKey="Glucose (mg/dL)"
             stroke="#14b8a6"
             strokeWidth={2}
@@ -75,6 +105,22 @@ export default function TrendChart({ predictions = [] }) {
             dot={{ stroke: '#db2777', strokeWidth: 1, r: 3 }}
             isAnimationActive={true}
             animationDuration={1000}
+          />
+          <ReferenceLine
+            x={todayFormatted}
+            stroke="#A3AED0"
+            strokeDasharray="4 2"
+            label={{ value: "Today", fill: "#A3AED0", fontSize: 11 }}
+          />
+          <ReferenceLine
+            y={75}
+            stroke="#EE5D50"
+            strokeDasharray="4 2"
+            label={{ 
+              value: "High Risk Threshold", 
+              fill: "#EE5D50", 
+              fontSize: 11 
+            }}
           />
         </LineChart>
       </ResponsiveContainer>

@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Optional
 from app.database.database import get_db
 from app.models.models import Prediction, Patient, Appointment, User
 from app.schemas.predictions import PredictionRequest, PredictionOut
@@ -192,3 +192,82 @@ def read_patient_predictions(
         ))
         
     return results
+
+@router.get("/forecast")
+async def get_risk_forecast(
+    months_ahead: int = 3,
+    patient_id: Optional[int] = None,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Returns risk score forecast for the current patient.
+    Doctors/admins can pass ?patient_id=X to forecast 
+    for a specific patient.
+    """
+    # Determine the target patient
+    if patient_id is not None:
+        patient = db.query(Patient).filter(Patient.id == patient_id).first()
+        if not patient:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Patient not found"
+            )
+        # Access control Check
+        if current_user.role == "admin":
+            pass
+        elif current_user.role == "doctor":
+            if not is_doctor_assigned(db, current_user.id, patient.id):
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Access denied. You are not assigned to this patient."
+                )
+        elif current_user.role == "patient":
+            if patient.user_id != current_user.id:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Access denied. You can only view your own forecast."
+                )
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Unauthorized access"
+            )
+    else:
+        # If no patient_id provided, default to current patient if the user is a patient
+        if current_user.role == "patient":
+            patient = db.query(Patient).filter(Patient.user_id == current_user.id).first()
+            if not patient:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Patient profile not found"
+                )
+        else:
+            # Doctors/Admins must specify patient_id
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="patient_id parameter is required for doctor/admin roles"
+            )
+            
+    # Query full prediction history for this patient
+    predictions = db.query(Prediction)\
+        .filter(Prediction.patient_id == patient.id)\
+        .order_by(Prediction.created_at.asc())\
+        .all()
+    
+    # Convert to list of dicts for forecasting service
+    history = [
+        {
+            "risk_score": p.risk_score,
+            "created_at": p.created_at
+        }
+        for p in predictions
+    ]
+    
+    # Clamp months_ahead between 1 and 6
+    months_ahead = max(1, min(6, months_ahead))
+    
+    from app.services.forecasting import generate_forecast
+    forecast = generate_forecast(history, months_ahead)
+    
+    return forecast

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { 
   Download, 
   Activity, 
@@ -17,6 +18,10 @@ import {
   useUpdatePatientMutation, 
   useGetAppointmentsQuery,
   useGetDoctorsQuery,
+  useGetRiskForecastQuery,
+  useGetHealthNudgesQuery,
+  useMarkHealthNudgeReadMutation,
+  useDismissHealthNudgeMutation,
   downloadPdfReport
 } from '../services/apiSlice';
 import { motion } from 'framer-motion';
@@ -29,6 +34,10 @@ export default function PatientDashboard() {
   const patient = patientsList?.[0];
 
   const { data: predictions = [], isLoading: isPredsLoading } = useGetPredictionsQuery(patient?.id, { skip: !patient });
+  const { data: forecast, isLoading: isForecastLoading } = useGetRiskForecastQuery({ monthsAhead: 3 }, { skip: !patient });
+  const { data: nudges = [] } = useGetHealthNudgesQuery({ status: 'unread' }, { skip: !patient });
+  const [markNudgeRead] = useMarkHealthNudgeReadMutation();
+  const [dismissNudge] = useDismissHealthNudgeMutation();
   const { data: appointments = [], isLoading: isApptsLoading } = useGetAppointmentsQuery(undefined, { skip: !patient });
   const { data: doctors = [], isLoading: isDocsLoading } = useGetDoctorsQuery(undefined, { skip: !patient });
 
@@ -168,25 +177,28 @@ export default function PatientDashboard() {
   return (
     <div className="patient-dashboard-container">
       {/* Header Banner */}
-      <div className="dashboard-header-panel">
-        <div className="header-greeting">
+      <div className="dashboard-header-panel" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '24px' }}>
+        <div className="header-greeting" style={{ flex: 1, minWidth: '280px' }}>
           <span className="welcome-tag">PATIENT CENTER</span>
           <h2>Welcome back, {patient?.user.name}! 👋</h2>
-          <p>Here's your clinical overview, prediction trends, and healthcare details.</p>
+          <p style={{ marginBottom: '16px' }}>Here's your clinical overview, prediction trends, and healthcare details.</p>
+          <button onClick={handleDownloadPDF} className="btn btn-primary export-pdf-btn" disabled={pdfLoading}>
+            {pdfLoading ? (
+              <>
+                <RefreshCw className="animate-spin" size={16} />
+                <span>Generating PDF...</span>
+              </>
+            ) : (
+              <>
+                <Download size={16} />
+                <span>Download Report</span>
+              </>
+            )}
+          </button>
         </div>
-        <button onClick={handleDownloadPDF} className="btn btn-primary export-pdf-btn" disabled={pdfLoading}>
-          {pdfLoading ? (
-            <>
-              <RefreshCw className="animate-spin" size={16} />
-              <span>Generating PDF...</span>
-            </>
-          ) : (
-            <>
-              <Download size={16} />
-              <span>Download Report</span>
-            </>
-          )}
-        </button>
+        <div className="header-illustration" style={{ width: '220px', height: '140px', flexShrink: 0, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+          <img src="/dashboard_illust.jpg" alt="Clinical Overview" style={{ width: '100%', height: '100%', objectFit: 'contain', borderRadius: '8px' }} />
+        </div>
       </div>
 
       {/* STAT CARDS ROW */}
@@ -248,6 +260,72 @@ export default function PatientDashboard() {
         </div>
       </div>
 
+      {/* Active Health Nudges section */}
+      {nudges.length > 0 && (
+        <motion.div 
+          className="glass-card animate-fade-in" 
+          style={{ marginBottom: '24px', padding: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '24px' }}
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3 }}
+        >
+          <div style={{ flex: 1 }}>
+            <div className="card-title-row" style={{ marginBottom: '16px' }}>
+              <Sparkles size={18} className="card-icon" style={{ color: 'var(--accent)' }} />
+              <h3 style={{ fontSize: '15px' }}>Active Health Reminders</h3>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {nudges.map((nudge) => (
+                <div 
+                  key={nudge.id} 
+                  style={{ 
+                    display: 'flex', 
+                    justifyContent: 'space-between', 
+                    alignItems: 'center', 
+                    background: 'rgba(255, 255, 255, 0.02)', 
+                    border: '1px solid var(--border)', 
+                    padding: '12px 16px', 
+                    borderRadius: '10px',
+                    gap: '16px'
+                  }}
+                >
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', flex: 1 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={{ fontSize: '13px', fontWeight: '700', color: 'var(--text-primary)' }}>{nudge.title}</span>
+                      <span className={`badge ${
+                        nudge.priority === 'high' ? 'badge-warning' :
+                        nudge.priority === 'medium' ? 'badge-info' : 'badge-success'
+                      }`} style={{ fontSize: '9px', padding: '2px 6px' }}>
+                        {nudge.priority}
+                      </span>
+                    </div>
+                    <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>{nudge.message}</span>
+                  </div>
+                  <div style={{ display: 'flex', gap: '12px', flexShrink: 0 }}>
+                    <button 
+                      onClick={() => markNudgeRead(nudge.id)}
+                      className="btn btn-secondary"
+                      style={{ padding: '6px 12px', fontSize: '11px' }}
+                    >
+                      Mark Read
+                    </button>
+                    <button 
+                      onClick={() => dismissNudge(nudge.id)}
+                      style={{ fontSize: '11px', color: 'hsl(var(--text-muted))', border: 'none', background: 'transparent', cursor: 'pointer' }}
+                    >
+                      Dismiss
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="nudge-illustration" style={{ width: '180px', height: '120px', flexShrink: 0, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+            <img src="/nudges_illust.jpg" alt="Health Notifications" style={{ width: '100%', height: '100%', objectFit: 'contain', borderRadius: '8px' }} />
+          </div>
+        </motion.div>
+      )}
+
       {/* DASHBOARD CONTENT GRID */}
       <div className="dashboard-content-split">
         {/* Health Trend (Left) */}
@@ -256,7 +334,7 @@ export default function PatientDashboard() {
             <Activity size={18} className="card-icon" style={{ color: 'var(--accent)' }} />
             <h3>Health Trend</h3>
           </div>
-          <TrendChart predictions={predictions} />
+          <TrendChart predictions={predictions} forecast={forecast} />
         </div>
 
         {/* Recent Appointments (Right) */}
@@ -295,6 +373,141 @@ export default function PatientDashboard() {
           </div>
         </div>
       </div>
+
+      {/* Risk Trend Forecast Section */}
+      {isForecastLoading ? (
+        <div className="glass-card forecast-full-card animate-pulse" style={{ marginTop: '24px', padding: '24px' }}>
+          <div style={{ height: '20px', width: '200px', background: 'rgba(255,255,255,0.05)', borderRadius: '4px', marginBottom: '16px' }}></div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', marginBottom: '16px' }}>
+            <div style={{ height: '60px', background: 'rgba(255,255,255,0.03)', borderRadius: '8px' }}></div>
+            <div style={{ height: '60px', background: 'rgba(255,255,255,0.03)', borderRadius: '8px' }}></div>
+            <div style={{ height: '60px', background: 'rgba(255,255,255,0.03)', borderRadius: '8px' }}></div>
+          </div>
+          <div style={{ height: '40px', background: 'rgba(255,255,255,0.03)', borderRadius: '8px' }}></div>
+        </div>
+      ) : forecast ? (
+        <motion.div 
+          className="glass-card forecast-full-card" 
+          style={{ marginTop: '24px' }}
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.2 }}
+        >
+          <div className="card-title-row">
+            <Sparkles size={18} className="card-icon" style={{ color: 'var(--accent)' }} />
+            <h3>Risk Trend Forecast</h3>
+          </div>
+          
+          {!forecast.sufficient_data ? (
+            <div style={{ padding: '30px 20px', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px' }}>
+              <p style={{ margin: 0, fontSize: '14px', color: 'hsl(var(--text-muted))' }}>
+                📊 Keep tracking your health — you need at least 4 prediction records to unlock trend forecasting.
+              </p>
+              <Link to="/predictions" className="btn btn-primary" style={{ padding: '8px 16px', fontSize: '13px', textDecoration: 'none' }}>
+                Run Prediction
+              </Link>
+            </div>
+          ) : (
+            <>
+              {/* Top row: three stat mini-boxes */}
+              <div className="forecast-stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '20px', marginTop: '16px' }}>
+                {/* Box 1: Trend Direction */}
+                <div className="forecast-stat-box" style={{ padding: '16px', background: 'rgba(255, 255, 255, 0.02)', border: '1px solid var(--border)', borderRadius: '12px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <span style={{ fontSize: '12px', color: 'hsl(var(--text-muted))' }}>Trend Direction</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    {forecast.trend_direction === 'increasing' && (
+                      <span className="badge badge-danger" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <span>↗</span> <span>Rising</span>
+                      </span>
+                    )}
+                    {forecast.trend_direction === 'decreasing' && (
+                      <span className="badge badge-success" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <span>↘</span> <span>Improving</span>
+                      </span>
+                    )}
+                    {forecast.trend_direction === 'stable' && (
+                      <span className="badge badge-info" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <span>→</span> <span>Stable</span>
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Box 2: Projected Risk */}
+                <div className="forecast-stat-box" style={{ padding: '16px', background: 'rgba(255, 255, 255, 0.02)', border: '1px solid var(--border)', borderRadius: '12px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <span style={{ fontSize: '12px', color: 'hsl(var(--text-muted))' }}>Projected Risk (3 months)</span>
+                  <span style={{ 
+                    fontSize: '24px', 
+                    fontWeight: '700', 
+                    color: forecast.projected_scores?.[forecast.projected_scores.length - 1]?.risk_score > 75 
+                      ? 'var(--danger)' 
+                      : forecast.projected_scores?.[forecast.projected_scores.length - 1]?.risk_score > 50 
+                      ? 'var(--warning)' 
+                      : 'var(--success)'
+                  }}>
+                    {forecast.projected_scores?.[forecast.projected_scores.length - 1]?.risk_score}%
+                  </span>
+                </div>
+
+                {/* Box 3: Confidence Level */}
+                <div className="forecast-stat-box" style={{ padding: '16px', background: 'rgba(255, 255, 255, 0.02)', border: '1px solid var(--border)', borderRadius: '12px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <span style={{ fontSize: '12px', color: 'hsl(var(--text-muted))' }}>Confidence Level</span>
+                  <div>
+                    <span className={`badge ${
+                      forecast.confidence === 'high' ? 'badge-success' :
+                      forecast.confidence === 'medium' ? 'badge-warning' : 'badge-danger'
+                    }`}>
+                      {forecast.confidence.toUpperCase()}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Middle: Plain language message */}
+              <div className="forecast-message-box" style={{ 
+                padding: '16px', 
+                background: 'rgba(91, 107, 248, 0.05)', 
+                border: '1px solid rgba(91, 107, 248, 0.2)', 
+                borderRadius: '12px',
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: '12px',
+                marginBottom: '16px'
+              }}>
+                <Sparkles size={20} style={{ color: 'var(--accent)', flexShrink: 0, marginTop: '2px' }} />
+                <p style={{ margin: 0, fontSize: '14px', lineHeight: '1.5', color: 'var(--text-primary)' }}>
+                  {forecast.forecast_message}
+                </p>
+              </div>
+
+              {/* High Risk warning banner if applicable */}
+              {forecast.trend_direction === 'increasing' && forecast.months_to_high_risk !== null && (
+                <div className="forecast-warning-banner" style={{
+                  padding: '12px 16px',
+                  background: 'rgba(238, 93, 80, 0.1)',
+                  border: '1px solid rgba(238, 93, 80, 0.3)',
+                  borderRadius: '12px',
+                  color: '#EE5D50',
+                  fontWeight: '600',
+                  fontSize: '14px',
+                  marginBottom: '16px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px'
+                }}>
+                  <span>⚠️</span>
+                  <span>Your risk may reach high-risk levels in {forecast.months_to_high_risk} month(s)</span>
+                </div>
+              )}
+
+              {/* Bottom: Disclaimer */}
+              <p style={{ margin: 0, fontSize: '11px', color: 'hsl(var(--text-muted))', lineHeight: '1.4' }}>
+                This projection is based on your historical trend and assumes no lifestyle changes. It is not a medical prediction. Consult your doctor for personalized guidance.
+              </p>
+            </>
+          )}
+        </motion.div>
+      ) : null}
 
       {/* DETAILS GRID */}
       <div className="dashboard-details-grid">

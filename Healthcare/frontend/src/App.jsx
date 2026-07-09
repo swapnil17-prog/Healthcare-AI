@@ -16,12 +16,17 @@ import {
   X,
   Mail,
   Lock,
-  ShieldCheck
+  ShieldCheck,
+  Bell
 } from 'lucide-react';
 import { logout } from './redux/authSlice';
 import { 
+  apiSlice,
   useGetPatientsQuery,
-  useUpdatePatientMutation
+  useUpdatePatientMutation,
+  useGetHealthNudgesQuery,
+  useMarkHealthNudgeReadMutation,
+  useDismissHealthNudgeMutation
 } from './services/apiSlice';
 
 // Import pages
@@ -40,6 +45,18 @@ export default function App() {
   
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
+
+  // Nudges queries
+  const { data: nudgesList = [] } = useGetHealthNudgesQuery(
+    { status: 'unread' },
+    { skip: !isAuthenticated || user?.role !== 'patient' }
+  );
+  
+  const [markRead] = useMarkHealthNudgeReadMutation();
+  const [dismissNudge] = useDismissHealthNudgeMutation();
+
+  const [bellDropdownOpen, setBellDropdownOpen] = useState(false);
+  const unreadCount = nudgesList.length;
 
   // Queries
   const { data: patientsList = [] } = useGetPatientsQuery(undefined, { skip: !isAuthenticated });
@@ -68,6 +85,7 @@ export default function App() {
 
   const handleLogout = () => {
     dispatch(logout());
+    dispatch(apiSlice.util.resetApiState());
     navigate('/');
     setMobileMenuOpen(false);
   };
@@ -247,6 +265,144 @@ export default function App() {
     <div className="app-container">
       {/* Background gradients */}
       <div className="bg-gradient-radial"></div>
+
+      {/* Floating Notification Bell Top Right */}
+      {user?.role === 'patient' && (
+        <>
+          {bellDropdownOpen && (
+            <div 
+              style={{ position: 'fixed', inset: 0, zIndex: 98 }} 
+              onClick={() => setBellDropdownOpen(false)} 
+            />
+          )}
+          <div className="notification-bell-wrapper" style={{ position: 'fixed', top: '20px', right: '32px', zIndex: 100 }}>
+            <button 
+              onClick={() => setBellDropdownOpen(!bellDropdownOpen)}
+              style={{ 
+                background: 'var(--bg-card)', 
+                border: '1px solid var(--border)', 
+                borderRadius: '50%', 
+                width: '40px', 
+                height: '40px', 
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'center', 
+                position: 'relative', 
+                cursor: 'pointer',
+                boxShadow: '0 4px 12px rgba(27, 37, 89, 0.08)',
+                color: 'var(--text-primary)'
+              }}
+            >
+              <Bell size={18} />
+              {unreadCount > 0 && (
+                <span style={{ 
+                  position: 'absolute', 
+                  top: '-2px', 
+                  right: '-2px', 
+                  background: 'var(--danger)', 
+                  color: 'white', 
+                  fontSize: '9px', 
+                  fontWeight: '700', 
+                  borderRadius: '50%', 
+                  width: '18px', 
+                  height: '18px', 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justifyContent: 'center',
+                  border: '2px solid var(--bg-card)'
+                }}>
+                  {unreadCount}
+                </span>
+              )}
+            </button>
+
+            <AnimatePresence>
+              {bellDropdownOpen && (
+                <motion.div 
+                  initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                  transition={{ duration: 0.15 }}
+                  style={{ 
+                    position: 'absolute', 
+                    top: '48px', 
+                    right: 0, 
+                    width: '320px', 
+                    background: 'var(--bg-card)', 
+                    border: '1px solid var(--border)', 
+                    borderRadius: '12px', 
+                    boxShadow: '0 10px 25px -5px rgba(27, 37, 89, 0.15), 0 8px 10px -6px rgba(27, 37, 89, 0.15)',
+                    padding: '16px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '12px',
+                    maxHeight: '400px',
+                    overflowY: 'auto'
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border)', paddingBottom: '8px' }}>
+                    <h4 style={{ margin: 0, fontSize: '14px', fontWeight: '700', color: 'var(--text-primary)' }}>Health Notifications</h4>
+                    {unreadCount > 0 && <span style={{ fontSize: '11px', color: 'var(--accent)', fontWeight: '600' }}>{unreadCount} new</span>}
+                  </div>
+
+                  {nudgesList.length === 0 ? (
+                    <p style={{ margin: 0, padding: '16px 0', textAlign: 'center', fontSize: '12px', color: 'hsl(var(--text-muted))' }}>
+                      All clear! No pending nudges.
+                    </p>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                      {nudgesList.map((nudge) => (
+                        <div 
+                          key={nudge.id} 
+                          style={{ 
+                            padding: '10px', 
+                            background: 'rgba(255, 255, 255, 0.02)', 
+                            border: '1px solid var(--border)', 
+                            borderRadius: '8px',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '6px'
+                          }}
+                        >
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
+                            <span style={{ fontSize: '12px', fontWeight: '700', color: 'var(--text-primary)' }}>{nudge.title}</span>
+                            <span className={`badge ${
+                              nudge.priority === 'high' ? 'badge-warning' :
+                              nudge.priority === 'medium' ? 'badge-info' : 'badge-success'
+                            }`} style={{ fontSize: '9px', padding: '2px 6px' }}>
+                              {nudge.priority}
+                            </span>
+                          </div>
+                          <p style={{ margin: 0, fontSize: '11px', color: 'var(--text-secondary)', lineHeight: '1.4' }}>{nudge.message}</p>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px' }}>
+                            <span style={{ fontSize: '9px', color: 'hsl(var(--text-muted))' }}>
+                              {new Date(nudge.created_at).toLocaleDateString([], { month: 'short', day: 'numeric' })}
+                            </span>
+                            <div style={{ display: 'flex', gap: '8px' }}>
+                              <button 
+                                onClick={() => markRead(nudge.id)}
+                                style={{ background: 'transparent', border: 'none', color: 'var(--accent)', fontSize: '10px', fontWeight: '600', cursor: 'pointer', padding: 0 }}
+                              >
+                                Mark read
+                              </button>
+                              <button 
+                                onClick={() => dismissNudge(nudge.id)}
+                                style={{ background: 'transparent', border: 'none', color: 'hsl(var(--text-muted))', fontSize: '10px', cursor: 'pointer', padding: 0 }}
+                              >
+                                Dismiss
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        </>
+      )}
       
       {/* Explicit sidebar wrapper */}
       <div className="sidebar-desktop-wrapper" style={{ display: 'block' }}>

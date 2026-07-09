@@ -39,6 +39,7 @@ class Patient(Base):
     lab_reports = relationship("LabReport", back_populates="patient", cascade="all, delete-orphan")
     predictions = relationship("Prediction", back_populates="patient", cascade="all, delete-orphan")
     appointments = relationship("Appointment", back_populates="patient", foreign_keys="[Appointment.patient_id]", cascade="all, delete-orphan")
+    health_nudges = relationship("HealthNudge", back_populates="patient", cascade="all, delete-orphan")
 
 class MedicalHistory(Base):
     __tablename__ = "medical_histories"
@@ -113,3 +114,22 @@ class RevokedToken(Base):
     token_jti = Column(String, unique=True, index=True, nullable=False)
     revoked_at = Column(DateTime, default=datetime.datetime.utcnow, nullable=False)
     expires_at = Column(DateTime, nullable=False)
+
+class HealthNudge(Base):
+    __tablename__ = "health_nudges"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    patient_id = Column(Integer, ForeignKey("patients.id", ondelete="CASCADE"), nullable=False)
+    type = Column(String, index=True, nullable=False)
+    title = Column(String, nullable=False)
+    message = Column(String, nullable=False)
+    priority = Column(String, default="low", nullable=False)
+    status = Column(String, default="unread", nullable=False)
+    scheduled_for = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow, nullable=False)
+    read_at = Column(DateTime, nullable=True)
+    dismissed_at = Column(DateTime, nullable=True)
+    metadata_json = Column(String, nullable=True)
+
+    # Relationships
+    patient = relationship("Patient", back_populates="health_nudges")

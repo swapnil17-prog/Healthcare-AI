@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { MessageSquare, X, Send, AlertTriangle, RefreshCw, Activity } from 'lucide-react';
+import { MessageSquare, X, Send, AlertTriangle, RefreshCw, Activity, Trash2 } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { api } from '../services/api';
 import './ChatWidget.css';
@@ -39,6 +39,17 @@ export default function ChatWidget() {
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  const handleClearHistory = async () => {
+    if (!window.confirm('Are you sure you want to clear all your chat history?')) return;
+    try {
+      await api.clearChatHistory();
+      setMessages([]);
+    } catch (e) {
+      console.error('Failed to clear chat history', e);
+      alert('Failed to clear chat history. Please try again.');
+    }
   };
 
   const handleSend = async (e) => {
@@ -156,8 +167,8 @@ export default function ChatWidget() {
             {/* Header */}
             <div className="chat-header">
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <div className="chat-avatar-ring">
-                  <Activity size={18} style={{ color: 'var(--accent)' }} />
+                <div className="chat-avatar-ring" style={{ overflow: 'hidden', padding: 0 }}>
+                  <img src="/bot_avatar.jpg" alt="Bot Avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                 </div>
                 <div>
                   <h3>AI Health Assistant</h3>
@@ -170,6 +181,9 @@ export default function ChatWidget() {
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <button className="chat-action-header-btn" onClick={loadHistory} title="Refresh Chat History">
                   <RefreshCw size={15} />
+                </button>
+                <button className="chat-action-header-btn" onClick={handleClearHistory} title="Clear Chat History" style={{ color: '#ff4d4f' }}>
+                  <Trash2 size={15} />
                 </button>
                 <button className="chat-close-btn" onClick={() => setIsOpen(false)} title="Close Chat">
                   <X size={18} />
