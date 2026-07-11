@@ -45,11 +45,46 @@ try:
 except Exception:
     pass
 
+# Ensure login_attempts column exists in users table for existing databases
+try:
+    with engine.connect() as conn:
+        conn.execute(text("ALTER TABLE users ADD COLUMN login_attempts INTEGER DEFAULT 0"))
+        conn.commit()
+except Exception:
+    pass
+
+# Ensure locked_until column exists in users table for existing databases
+try:
+    with engine.connect() as conn:
+        conn.execute(text("ALTER TABLE users ADD COLUMN locked_until DATETIME"))
+        conn.commit()
+except Exception:
+    pass
+
+DEBUG_MODE = os.getenv("DEBUG", "true").lower() == "true"
 app = FastAPI(
     title="Healthcare AI Patient Risk Prediction API",
     description="Backend API for the learning/portfolio Patient Risk Prediction System",
-    version="1.0.0"
+    version="1.0.0",
+    debug=DEBUG_MODE
 )
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    if DEBUG_MODE:
+        import traceback
+        return JSONResponse(
+            status_code=500,
+            content={
+                "detail": "Internal Server Error",
+                "message": str(exc),
+                "traceback": traceback.format_exc()
+            }
+        )
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "An internal error occurred. Please try again later."}
+    )
 
 @app.on_event("startup")
 async def cleanup_revoked_tokens():

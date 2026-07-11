@@ -13,6 +13,8 @@ class User(Base):
     role = Column(String, nullable=False)  # admin, doctor, patient
     is_active = Column(Boolean, default=True, nullable=False)
     suspended_at = Column(DateTime, nullable=True)
+    login_attempts = Column(Integer, default=0, nullable=False)
+    locked_until = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
 
     # Relationships

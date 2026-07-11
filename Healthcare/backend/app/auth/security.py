@@ -63,7 +63,10 @@ def create_refresh_token(subject: Union[str, Any], role: str, expires_delta: tim
 
 def decode_access_token(token: str) -> dict:
     try:
-        decoded_token = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        header = jwt.get_unverified_header(token)
+        if header.get("alg") != "HS256":
+            return None
+        decoded_token = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
         # Ensure exp has not elapsed
         return decoded_token if decoded_token["exp"] >= datetime.utcnow().timestamp() else None
     except jwt.JWTError:
@@ -71,7 +74,10 @@ def decode_access_token(token: str) -> dict:
 
 def decode_refresh_token(token: str) -> dict:
     try:
-        decoded_token = jwt.decode(token, REFRESH_SECRET_KEY, algorithms=[ALGORITHM])
+        header = jwt.get_unverified_header(token)
+        if header.get("alg") != "HS256":
+            return None
+        decoded_token = jwt.decode(token, REFRESH_SECRET_KEY, algorithms=["HS256"])
         return decoded_token if decoded_token["exp"] >= datetime.utcnow().timestamp() else None
     except jwt.JWTError:
         return None

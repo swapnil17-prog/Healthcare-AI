@@ -59,14 +59,45 @@ def register(user_in: UserCreate, db: Session = Depends(get_db)):
         
     return db_user
 
+from datetime import datetime, timedelta
+
 @router.post("/login", response_model=Token)
 def login(response: Response, login_in: UserLogin, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.email == login_in.email).first()
-    if not user or not verify_password(login_in.password, user.password_hash):
+    if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect email or password"
+            detail="Invalid email or password"
         )
+        
+    # Check if account is locked
+    if user.locked_until and user.locked_until > datetime.utcnow():
+        minutes_left = int((user.locked_until - datetime.utcnow()).total_seconds() / 60) + 1
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Account locked. Try again in {minutes_left} minutes."
+        )
+        
+    if not verify_password(login_in.password, user.password_hash):
+        user.login_attempts = (user.login_attempts or 0) + 1
+        if user.login_attempts >= 5:
+            user.locked_until = datetime.utcnow() + timedelta(minutes=15)
+            user.login_attempts = 0
+            db.commit()
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Account locked. Try again in 15 minutes."
+            )
+        db.commit()
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid email or password"
+        )
+        
+    # Reset attempts on successful login
+    user.login_attempts = 0
+    user.locked_until = None
+    db.commit()
         
     access_token = create_access_token(subject=user.email, role=user.role)
     refresh_token = create_refresh_token(subject=user.email, role=user.role)

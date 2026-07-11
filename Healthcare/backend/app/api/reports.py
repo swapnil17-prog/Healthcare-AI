@@ -182,6 +182,27 @@ async def upload_lab_report(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="File is too large. Maximum size allowed is 5MB."
         )
+
+    # Validate Magic Bytes (File Content Verification)
+    if file_ext == ".pdf":
+        if not content.startswith(b"%PDF-"):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid PDF file. Content does not match PDF signature."
+            )
+    elif file_ext == ".csv":
+        if content.startswith(b"MZ") or content.startswith(b"\x7fELF"):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid CSV file. Executables are not allowed."
+            )
+        try:
+            content.decode("utf-8")
+        except UnicodeDecodeError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid CSV file. Content is not valid text."
+            )
         
     # Ensure upload directory exists
     os.makedirs(UPLOAD_DIR, exist_ok=True)

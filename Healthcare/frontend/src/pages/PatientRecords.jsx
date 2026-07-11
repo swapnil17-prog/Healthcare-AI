@@ -140,7 +140,7 @@ export default function PatientRecords() {
                     borderBottom: apptTab === 'upcoming' ? '2px solid var(--accent)' : '2px solid transparent',
                     paddingBottom: '4px',
                     fontWeight: apptTab === 'upcoming' ? '700' : '500',
-                    color: apptTab === 'upcoming' ? 'white' : 'var(--text-secondary)',
+                    color: apptTab === 'upcoming' ? 'var(--accent)' : 'var(--text-secondary)',
                     transition: 'all 0.2s ease'
                   }}
                 >
@@ -157,7 +157,7 @@ export default function PatientRecords() {
                     borderBottom: apptTab === 'history' ? '2px solid var(--accent)' : '2px solid transparent',
                     paddingBottom: '4px',
                     fontWeight: apptTab === 'history' ? '700' : '500',
-                    color: apptTab === 'history' ? 'white' : 'var(--text-secondary)',
+                    color: apptTab === 'history' ? 'var(--accent)' : 'var(--text-secondary)',
                     transition: 'all 0.2s ease'
                   }}
                 >
@@ -208,12 +208,12 @@ export default function PatientRecords() {
                         width: '100%', 
                         marginTop: '4px', 
                         padding: '10px 12px', 
-                        background: 'rgba(255, 255, 255, 0.02)', 
-                        border: '1px solid rgba(255, 255, 255, 0.05)', 
+                        background: 'var(--bg-primary)', 
+                        border: '1px solid var(--border)', 
                         borderRadius: '6px',
                         fontSize: '12px' 
                       }}>
-                        <strong style={{ color: 'white', display: 'block', marginBottom: '4px', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Notes Log:</strong>
+                        <strong style={{ color: 'var(--text-primary)', display: 'block', marginBottom: '4px', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Notes Log:</strong>
                         <p style={{ margin: 0, color: 'hsl(var(--text-muted))', whiteSpace: 'pre-wrap', lineHeight: 1.4 }}>{appt.notes}</p>
                       </div>
                     )}
@@ -340,7 +340,7 @@ export default function PatientRecords() {
                       display: 'flex', 
                       justifyContent: 'space-between', 
                       alignItems: 'center', 
-                      background: 'rgba(255, 255, 255, 0.02)', 
+                      background: 'var(--bg-primary)', 
                       border: '1px solid var(--border)', 
                       padding: '12px 16px', 
                       borderRadius: '8px' 
