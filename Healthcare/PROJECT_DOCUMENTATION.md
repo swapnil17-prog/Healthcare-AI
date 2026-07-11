@@ -232,6 +232,7 @@ Here is a summary of the features and engineering work implemented in the projec
 34. **Brute Force Lockout System:** Introduced `login_attempts` counters and `locked_until` locks on the `User` database schema. Any user account exceeding 5 consecutive incorrect passwords is automatically locked for 15 minutes.
 35. **Production Error Mode Handler:** Integrated a configurable `DEBUG` flag and a custom unhandled exception handler that hides raw database and server tracebacks, returning a generic message (`"An internal error occurred. Please try again later."`) in production.
 36. **Dependabot Automated Scanner:** Added `.github/dependabot.yml` in the root workspace to automate weekly vulnerability scanning for pip (backend) and npm (frontend) dependency packages.
+37. **Light-Theme UI Tab & Notes Visibility Fixes:** Resolved light-theme color regressions in the Patient Records portal by changing hardcoded white text settings for active consultation tabs and notes log headers to theme variables (`var(--accent)` and `var(--text-primary)`). Configured proper background colors and solid boarders for notes logs to ensure maximum legibility.
 
 ---
 
