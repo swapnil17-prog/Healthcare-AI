@@ -180,6 +180,7 @@ export default function PatientDashboard() {
       <div className="dashboard-header-panel" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '24px' }}>
         <div className="header-greeting" style={{ flex: 1, minWidth: '280px' }}>
           <span className="welcome-tag">PATIENT CENTER</span>
+          {/* Safe: plain text rendering, no HTML injection risk */}
           <h2>Welcome back, {patient?.user.name}! 👋</h2>
           <p style={{ marginBottom: '16px' }}>Here's your clinical overview, prediction trends, and healthcare details.</p>
           <button onClick={handleDownloadPDF} className="btn btn-primary export-pdf-btn" disabled={pdfLoading}>

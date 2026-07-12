@@ -1,6 +1,7 @@
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, validator
 from typing import Optional
 from datetime import datetime
+from app.services.sanitizer import sanitize_name
 
 # --- Token Schemas ---
 class Token(BaseModel):
@@ -21,6 +22,10 @@ class UserBase(BaseModel):
 class UserCreate(UserBase):
     password: str = Field(..., min_length=6, description="Password must be at least 6 characters long")
     role: str = Field("patient", description="Role must be patient, doctor, or admin")
+
+    @validator("name")
+    def sanitize_user_name(cls, v):
+        return sanitize_name(v)
 
 class UserLogin(BaseModel):
     email: EmailStr
@@ -58,6 +63,10 @@ class AdminUserCreate(BaseModel):
     email: EmailStr
     password: str = Field(..., min_length=6, description="Password must be at least 6 characters long")
     role: str = Field(..., description="Role must be patient or doctor")
+
+    @validator("full_name")
+    def sanitize_full_name(cls, v):
+        return sanitize_name(v)
 
 class AdminUserResponse(BaseModel):
     id: int

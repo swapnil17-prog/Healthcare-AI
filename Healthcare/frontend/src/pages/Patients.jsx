@@ -326,6 +326,7 @@ export default function Patients() {
                         <tr key={p.id}>
                           <td>
                             <div className="roster-patient-cell">
+                              {/* Safe: plain text rendering, no HTML injection risk */}
                               <span className="p-cell-name">{p.user.name}</span>
                               <span className="p-cell-email">{p.user.email}</span>
                             </div>

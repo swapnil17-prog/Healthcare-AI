@@ -215,6 +215,7 @@ export default function ChatWidget() {
                     transition={{ duration: 0.2 }}
                   >
                     <div className={`chat-bubble ${msg.role}`}>
+                      {/* Safe: plain text rendering, no HTML injection risk */}
                       <p className="chat-bubble-text">{msg.content}</p>
                       <span className="chat-bubble-time">
                         {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}

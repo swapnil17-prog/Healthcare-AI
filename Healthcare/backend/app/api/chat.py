@@ -15,6 +15,7 @@ from app.models.models import ChatMessage, Patient, Prediction, User, MedicalHis
 from app.auth.dependencies import get_current_user, check_ownership_or_403
 from app.core.rate_limiter import limiter
 from app.services.vector_store import vector_store
+from app.services.sanitizer import sanitize_chat_message
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 
@@ -293,21 +294,23 @@ def send_chat_message(
             detail="Message content cannot be empty"
         )
         
-    sanitized_message = sanitize_input(user_msg_text)
+    # 1. bleach sanitize (strips HTML)
+    bleached_message = sanitize_chat_message(user_msg_text)
     
-    # 1. Save user's message to DB
-    user_message = ChatMessage(
-        user_id=current_user.id,
-        role="user",
-        content=sanitized_message
-    )
-    db.add(user_message)
-    db.commit()
-    db.refresh(user_message)
-    
-    # 2. Safety Pre-check
-    safety_deflection = pre_check_safety(sanitized_message)
+    # 2. safety deflection check (pre_check_safety)
+    safety_deflection = pre_check_safety(bleached_message)
     if safety_deflection:
+        # Save user's message to DB (bleached/sanitized)
+        user_message = ChatMessage(
+            user_id=current_user.id,
+            role="user",
+            content=bleached_message
+        )
+        db.add(user_message)
+        db.commit()
+        db.refresh(user_message)
+        
+        # Save assistant deflection response
         assistant_message = ChatMessage(
             user_id=current_user.id,
             role="assistant",
@@ -317,6 +320,19 @@ def send_chat_message(
         db.commit()
         db.refresh(assistant_message)
         return assistant_message
+
+    # 3. prompt injection sanitization (sanitize_input)
+    sanitized_message = sanitize_input(bleached_message)
+    
+    # Save user's message to DB
+    user_message = ChatMessage(
+        user_id=current_user.id,
+        role="user",
+        content=sanitized_message
+    )
+    db.add(user_message)
+    db.commit()
+    db.refresh(user_message)
     # 3. Retrieve patient details
     patient_id = None
     patient_context = ""

@@ -389,6 +389,7 @@ export default function DoctorDashboard() {
 
                     return (
                       <tr key={p.id} onClick={() => navigate('/patients', { state: { selectedPatientId: p.id } })} style={{ cursor: 'pointer' }}>
+                        {/* Safe: plain text rendering, no HTML injection risk */}
                         <td><strong>{p.user.name}</strong></td>
                         <td>{p.age || 'N/A'}</td>
                         <td>{riskBadge}</td>
