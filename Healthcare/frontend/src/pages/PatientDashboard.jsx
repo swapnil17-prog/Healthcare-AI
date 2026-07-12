@@ -22,6 +22,7 @@ import {
   useGetHealthNudgesQuery,
   useMarkHealthNudgeReadMutation,
   useDismissHealthNudgeMutation,
+  useGetHeartPredictionHistoryQuery,
   downloadPdfReport
 } from '../services/apiSlice';
 import { motion } from 'framer-motion';
@@ -40,6 +41,7 @@ export default function PatientDashboard() {
   const [dismissNudge] = useDismissHealthNudgeMutation();
   const { data: appointments = [], isLoading: isApptsLoading } = useGetAppointmentsQuery(undefined, { skip: !patient });
   const { data: doctors = [], isLoading: isDocsLoading } = useGetDoctorsQuery(undefined, { skip: !patient });
+  const { data: heartHistory, isLoading: isHeartLoading } = useGetHeartPredictionHistoryQuery({ limit: 1 }, { skip: !patient });
 
   const [updatePatient] = useUpdatePatientMutation();
   const [pdfLoading, setPdfLoading] = useState(false);
@@ -121,7 +123,7 @@ export default function PatientDashboard() {
     }
   };
 
-  const loading = isPatientsLoading || (patient && isPredsLoading) || isApptsLoading || isDocsLoading;
+  const loading = isPatientsLoading || (patient && isPredsLoading) || isApptsLoading || isDocsLoading || isHeartLoading;
 
   if (loading) {
     return <div className="dashboard-loading-container">Loading Patient Dashboard...</div>;
@@ -129,6 +131,7 @@ export default function PatientDashboard() {
 
   const latestPrediction = predictions.length > 0 ? predictions[predictions.length - 1] : null;
   const riskScore = latestPrediction ? latestPrediction.risk_score : 0;
+  const latestHeartPrediction = heartHistory?.predictions?.[0];
   
   // Extract latest vitals for goal progress trackers & Stat Cards
   const latestGlucose = latestPrediction ? latestPrediction.input_features.glucose : null;
@@ -204,17 +207,52 @@ export default function PatientDashboard() {
 
       {/* STAT CARDS ROW */}
       <div className="stat-cards-grid">
-        {/* Card 1: Risk Score */}
+        {/* Card 1: Diabetes Risk Score */}
         <div className="white-stat-card">
           <div className="stat-card-icon-wrapper accent-light">
             <Activity className="stat-card-icon" size={24} />
           </div>
           <div className="stat-card-info">
-            <span className="stat-card-label">Risk Score</span>
+            <span className="stat-card-label">🩸 Diabetes Risk</span>
             <h3 className="stat-card-value">{riskScore}%</h3>
             <span className={`badge ${riskScore >= 60 ? 'badge-danger' : riskScore >= 30 ? 'badge-warning' : 'badge-success'}`}>
               {latestPrediction?.prediction || 'No Scan'}
             </span>
+          </div>
+        </div>
+
+        {/* Card 1.5: Heart Disease Risk Score */}
+        <div className="white-stat-card">
+          <div className="stat-card-icon-wrapper accent-light" style={{ backgroundColor: 'rgba(239, 68, 68, 0.1)' }}>
+            <Heart className="stat-card-icon" size={24} style={{ color: '#ef4444' }} />
+          </div>
+          <div className="stat-card-info" style={{ width: '100%' }}>
+            <span className="stat-card-label">❤️ Heart Disease Risk</span>
+            {latestHeartPrediction ? (
+              <>
+                <h3 className="stat-card-value">{latestHeartPrediction.risk_score}%</h3>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', alignItems: 'center', marginTop: '4px' }}>
+                  <span className={`badge ${
+                    latestHeartPrediction.risk_level === 'High' ? 'badge-danger' :
+                    latestHeartPrediction.risk_level === 'Medium' ? 'badge-warning' : 'badge-success'
+                  }`} style={{ fontSize: '10px', padding: '2px 6px' }}>
+                    {latestHeartPrediction.risk_level} Risk
+                  </span>
+                  {latestHeartPrediction.confidence_lower !== null && latestHeartPrediction.confidence_upper !== null && (
+                    <span style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>
+                      CI: {latestHeartPrediction.confidence_lower}%-{latestHeartPrediction.confidence_upper}%
+                    </span>
+                  )}
+                </div>
+              </>
+            ) : (
+              <>
+                <h3 className="stat-card-value" style={{ fontSize: '15px', color: 'var(--text-secondary)', marginTop: '4px' }}>Not assessed</h3>
+                <Link to="/predictions" className="badge badge-info" style={{ textDecoration: 'none', display: 'inline-block', marginTop: '4px' }}>
+                  Assess Now →
+                </Link>
+              </>
+            )}
           </div>
         </div>
 

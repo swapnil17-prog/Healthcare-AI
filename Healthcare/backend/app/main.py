@@ -19,7 +19,7 @@ from app.core.rate_limiter import limiter
 from datetime import datetime
 from app.database.database import engine, SessionLocal
 from app.models.models import Base, RevokedToken, HealthNudge
-from app.api import auth, patients, appointments, medical_history, predictions, reports, chat, pdf, admin, health_nudges
+from app.api import auth, patients, appointments, medical_history, predictions, reports, chat, pdf, admin, health_nudges, heart_predictions
 
 # Initialize Database tables
 Base.metadata.create_all(bind=engine)
@@ -261,6 +261,7 @@ app.include_router(chat.router, prefix="/api")
 app.include_router(pdf.router, prefix="/api")
 app.include_router(admin.router, prefix="/api")
 app.include_router(health_nudges.router, prefix="/api")
+app.include_router(heart_predictions.router, prefix="/api")
 
 # APScheduler Background Task Setup
 from apscheduler.schedulers.background import BackgroundScheduler

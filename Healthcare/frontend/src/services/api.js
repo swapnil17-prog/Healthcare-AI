@@ -233,6 +233,31 @@ export const api = {
     return res.json();
   },
 
+  predictHeartDisease: async (data) => {
+    const res = await customFetch(`${BASE_URL}/heart/predict`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.detail || 'Heart inference engine failed');
+    }
+    return res.json();
+  },
+
+  getHeartPredictionHistory: async (limit = 10, skip = 0, patientId = null) => {
+    let url = `${BASE_URL}/heart/history?limit=${limit}&skip=${skip}`;
+    if (patientId) {
+      url += `&patient_id=${patientId}`;
+    }
+    const res = await customFetch(url, {
+      method: 'GET',
+    });
+    if (!res.ok) throw new Error('Failed to fetch heart prediction history');
+    return res.json();
+  },
+
   // --- LAB REPORTS ---
   getReports: async (patientId) => {
     const res = await customFetch(`${BASE_URL}/patients/${patientId}/reports`, {

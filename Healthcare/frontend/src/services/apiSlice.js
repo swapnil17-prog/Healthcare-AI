@@ -150,6 +150,22 @@ export const apiSlice = createApi({
       }),
       invalidatesTags: ['Predictions'],
     }),
+    predictHeartDisease: builder.mutation({
+      query: (data) => ({
+        url: '/heart/predict',
+        method: 'POST',
+        body: data,
+      }),
+      invalidatesTags: ['Predictions'],
+    }),
+    getHeartPredictionHistory: builder.query({
+      query: ({ limit = 10, skip = 0 } = {}) =>
+        `/heart/history?limit=${limit}&skip=${skip}`,
+      providesTags: ['Predictions'],
+    }),
+    getHeartStatus: builder.query({
+      query: () => '/heart/status',
+    }),
     getRiskForecast: builder.query({
       query: ({ monthsAhead = 3, patientId } = {}) => {
         let url = `/predictions/forecast?months_ahead=${monthsAhead}`;
@@ -328,4 +344,7 @@ export const {
   useMarkHealthNudgeReadMutation,
   useDismissHealthNudgeMutation,
   useRunNudgeChecksMutation,
+  usePredictHeartDiseaseMutation,
+  useGetHeartPredictionHistoryQuery,
+  useGetHeartStatusQuery,
 } = apiSlice;

@@ -152,4 +152,106 @@ def train_and_save_model():
     print("=== MODEL TRAINING COMPLETED ===")
 
 if __name__ == "__main__":
-    train_and_save_model()
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    if not os.path.exists(os.path.join(current_dir, "models", "diabetes_model.pkl")):
+        train_and_save_model()
+    else:
+        print("Diabetes model already exists. Skipping training.")
+
+def train_heart_disease_model():
+    import pandas as pd
+    import numpy as np
+    import pickle
+    import os
+    
+    print("Training Heart Disease Risk Model...")
+    
+    # Load dataset
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    csv_path = os.path.join(current_dir, "data", "cardio_train.csv")
+    df = pd.read_csv(
+        csv_path, 
+        sep=";"
+    )
+    
+    # Convert age from days to years
+    df["age_years"] = df["age"] / 365.0
+    
+    # Data cleaning — remove impossible values
+    df = df[
+        (df["ap_hi"] >= 60) & (df["ap_hi"] <= 250) &
+        (df["ap_lo"] >= 40) & (df["ap_lo"] <= 180) &
+        (df["height"] >= 100) & (df["height"] <= 250) &
+        (df["weight"] >= 30) & (df["weight"] <= 200) &
+        (df["ap_lo"] < df["ap_hi"])
+    ]
+    
+    print(f"Clean rows after filtering: {len(df)}")
+    
+    # Features and target
+    feature_cols = [
+        "age_years", "gender", "height", "weight",
+        "ap_hi", "ap_lo", "cholesterol", "gluc",
+        "smoke", "alco", "active"
+    ]
+    X = df[feature_cols].values
+    y = df["cardio"].values
+    
+    # Train/test split (80/20)
+    split = int(0.8 * len(X))
+    X_train, X_test = X[:split], X[split:]
+    y_train, y_test = y[:split], y[split:]
+    
+    # Train using existing SimpleLogisticRegression
+    from app.ml.model_definition import SimpleLogisticRegression
+    model = SimpleLogisticRegression(epochs=100)
+    model.fit(X_train.tolist(), y_train.tolist())
+    
+    # Evaluate
+    predictions = model.predict(X_test.tolist())
+    accuracy = sum(
+        p == a for p, a in zip(predictions, y_test.tolist())
+    ) / len(y_test)
+    print(f"Heart Disease Model Accuracy: {accuracy:.4f}")
+    
+    # Bootstrap confidence intervals (100 resamples)
+    print("Computing bootstrap confidence intervals...")
+    bootstrap_weights = []
+    n = len(X_train)
+    
+    for i in range(100):
+        indices = np.random.randint(0, n, size=2000)
+        X_boot = X_train[indices]
+        y_boot = y_train[indices]
+        boot_model = SimpleLogisticRegression(epochs=10)
+        boot_model.fit(X_boot.tolist(), y_boot.tolist())
+        bootstrap_weights.append(boot_model.weights)
+        if (i + 1) % 20 == 0:
+            print(f"  Bootstrap {i+1}/100 done")
+    
+    # Save model package
+    os.makedirs("models", exist_ok=True)
+    os.makedirs("backend/models", exist_ok=True)
+    
+    model_package = {
+        "model": model,
+        "bootstrap_weights": bootstrap_weights,
+        "feature_names": feature_cols,
+        "scaler_params": {
+            "min": model.x_min.tolist(),
+            "max": model.x_max.tolist()
+        },
+        "training_accuracy": accuracy,
+        "condition": "heart_disease",
+        "dataset_rows": len(df)
+    }
+    
+    for p in ["models/heart_disease_model.pkl", "backend/models/heart_disease_model.pkl"]:
+        with open(p, "wb") as f:
+            pickle.dump(model_package, f)
+    
+    print("Heart disease model saved successfully")
+    return accuracy
+
+if __name__ == "__main__":
+    train_heart_disease_model()

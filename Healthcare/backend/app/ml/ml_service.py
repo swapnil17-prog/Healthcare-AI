@@ -86,3 +86,88 @@ class MLService:
 
 # Global singleton service
 ml_service = MLService()
+
+class HeartDiseaseMLService:
+    def __init__(self):
+        self.model_package = None
+        self.available = False
+        self._load_model()
+    
+    def _load_model(self):
+        try:
+            import pickle
+            model_path = os.path.join(BASE_DIR, "models", "heart_disease_model.pkl")
+            if os.path.exists(model_path):
+                with open(model_path, "rb") as f:
+                    self.model_package = pickle.load(f)
+                self.available = True
+                acc = self.model_package.get("training_accuracy", 0)
+                logger.info(f"Heart Disease Model loaded. Accuracy: {acc:.4f}")
+            else:
+                logger.warning(
+                    f"WARNING: heart_disease_model.pkl not found at {model_path}. "
+                    "Run train_model.py first. Heart disease endpoint will be disabled."
+                )
+                self.available = False
+        except Exception as e:
+            logger.error(f"Error loading Heart Disease Model: {e}")
+            self.available = False
+    
+    def predict(self, features: list) -> dict:
+        if not self.available:
+            self._load_model()
+            if not self.available:
+                raise RuntimeError("Heart disease model not loaded")
+        
+        model = self.model_package["model"]
+        bootstrap_weights = self.model_package["bootstrap_weights"]
+        feature_names = self.model_package["feature_names"]
+        
+        # Main prediction
+        import numpy as np
+        X = np.array(features)
+        probabilities = model.predict_proba([features])[0]
+        risk_score = float(probabilities[1]) * 100
+        
+        # Confidence interval from bootstrap
+        bootstrap_probs = []
+        for weights in bootstrap_weights:
+            boot_model = type(model)()
+            boot_model.weights = np.array(weights)
+            boot_model.bias = model.bias
+            boot_model.x_min = model.x_min
+            boot_model.x_max = model.x_max
+            prob = float(boot_model.predict_proba([features])[0][1]) * 100
+            bootstrap_probs.append(prob)
+        
+        lower = float(np.percentile(bootstrap_probs, 2.5))
+        upper = float(np.percentile(bootstrap_probs, 97.5))
+        
+        # Feature contributions (XAI)
+        scaled = (X - model.x_min) / (
+            model.x_max - model.x_min + 1e-9
+        )
+        contributions = {
+            feature_names[i]: round(
+                float(scaled[i] * model.weights[i]), 4
+            )
+            for i in range(len(feature_names))
+        }
+        
+        # Risk level
+        if risk_score >= 70:
+            risk_level = "High"
+        elif risk_score >= 40:
+            risk_level = "Medium"
+        else:
+            risk_level = "Low"
+        
+        return {
+            "risk_score": round(risk_score, 2),
+            "risk_level": risk_level,
+            "confidence_lower": round(lower, 2),
+            "confidence_upper": round(upper, 2),
+            "feature_contributions": contributions
+        }
+
+heart_ml_service = HeartDiseaseMLService()

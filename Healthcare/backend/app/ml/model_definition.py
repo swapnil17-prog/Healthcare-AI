@@ -68,6 +68,24 @@ class SimpleLogisticRegression:
             probs.append([1.0 - prob, prob])
         return probs
 
+    @property
+    def x_min(self):
+        import numpy as np
+        return np.array(self.min_vals) if self.min_vals is not None else None
+
+    @x_min.setter
+    def x_min(self, val):
+        self.min_vals = val.tolist() if hasattr(val, "tolist") else list(val)
+
+    @property
+    def x_max(self):
+        import numpy as np
+        return np.array(self.max_vals) if self.max_vals is not None else None
+
+    @x_max.setter
+    def x_max(self, val):
+        self.max_vals = val.tolist() if hasattr(val, "tolist") else list(val)
+
     def predict(self, X):
         probs = self.predict_proba(X)
         return [1 if p[1] >= 0.5 else 0 for p in probs]

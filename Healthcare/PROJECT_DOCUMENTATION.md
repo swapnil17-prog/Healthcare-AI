@@ -124,6 +124,7 @@ Pydantic schemas enforce type safety and format requirements on requests and ser
 *   [medical_history.py](./backend/app/schemas/medical_history.py) – Handles schemas for creating, updating, and viewing medical records.
 *   [appointments.py](./backend/app/schemas/appointments.py) – Validates appointment dates, doctors, and scheduling notes.
 *   [predictions.py](./backend/app/schemas/predictions.py) – Formats vitals fields for model input and structures prediction result outputs.
+*   [heart_predictions.py](./backend/app/schemas/heart_predictions.py) – Validates heart disease vital fields and structures prediction outputs.
 *   [reports.py](./backend/app/schemas/reports.py) – Handles serialization for diagnostic upload file data.
 
 #### API Routers Subfolder (`backend/app/api/`)
@@ -133,6 +134,7 @@ These files contain the controllers mapping requests to business services and re
 *   [appointments.py](./backend/app/api/appointments.py) – Creates and returns appointments for patients, admins, and doctors.
 *   [medical_history.py](./backend/app/api/medical_history.py) – Implements medical record creation, list retrievals, updates, and deletes.
 *   [predictions.py](./backend/app/api/predictions.py) – Runs prediction requests by routing variables to the ML service and returning recommendations.
+*   [heart_predictions.py](./backend/app/api/heart_predictions.py) – Handles heart disease predictions, history, and status check APIs.
 *   [reports.py](./backend/app/api/reports.py) – Manages file uploads (PDF/CSV) to server disk, retrieves patient diagnostic lists, and downloads raw files.
 *   [chat.py](./backend/app/api/chat.py) – Integrates the Claude 3.5 Sonnet streaming chatbot, incorporating Server-Sent Events (SSE) `/stream`, history calls, context assembly, mock response fallbacks, and local safety deflection filters for diagnoses and dosage questions.
 *   [pdf.py](./backend/app/api/pdf.py) – Assembles the PDF document utilizing ReportLab styles, custom tables, margins, and titles, branded under the 'Healthcare AI' identifier.
@@ -157,6 +159,7 @@ Standalone diagnostic scripts executing test suites against a temporary in-memor
 *   [test_health_nudges.py](./backend/test/test_health_nudges.py) – Confirms daily cron background scheduler generates nudges correctly.
 *   [test_security_upgrades.py](./backend/test/test_security_upgrades.py) – Validates brute-force lockout, origin domain checks, and token revoking.
 *   [test_xss_sanitization.py](./backend/test/test_xss_sanitization.py) – Asserts bleach sanitization strips dangerous tags/scripts.
+*   [test_heart_predictions.py](./backend/test/test_heart_predictions.py) – Verifies heart predictions, validator rules, and doctor assignment bounds.
 
 ---
 
@@ -249,6 +252,11 @@ Here is a summary of the features and engineering work implemented in the projec
 44. **Timing Attack Authentication Defense:** Normalised auth timings for non-existent users and wrong password entries by executing timing-safe bcrypt verification using a module-level pre-computed dummy hash.
 45. **Structured Logging Redaction & Middleware:** Added `logging_config.py` with `SensitiveDataFilter` to scrub emails, passwords, JWT tokens, API keys, and patient vitals from console logs, and built `safe_request_logger` middleware masking sensitive request directories.
 46. **Root Logging Migration:** Audited and replaced all `print()` calls in the codebase (ML inference, RAG vectors, chat helpers, tasks) with proper root `logger` statements.
+47. **Heart Disease Risk Prediction System:** Designed and trained a custom Logistic Regression model with bootstrap resampling (100 estimators) on `cardio_train.csv` (70,000 rows) in `train_model.py`. Computes 95% confidence intervals and Explainable AI (XAI) feature contributions.
+48. **Heart Prediction Access Control Guards:** Configured `/api/heart/predict` and `/api/heart/history` endpoints with patient ownership checks and doctor-patient active appointment assignment verifications to safeguard metrics data.
+49. **Predictions Page Tabbed Interface:** Integrated a navigation shell to toggle between Diabetes and Heart screening forms, featuring an auto-calculating BMI module, radial risk gauges, and cardiologist/general practitioner referral recommendations.
+50. **Patient & Doctor Dashboard Heart Metrics:** Added a "Heart Disease Risk" card to the Patient Dashboard displaying latest metrics. Integrated average risk KPIs, a "Heart Risk Distribution" donut chart, and high-risk critical alerts to the Doctor Dashboard.
+
 
 ---
 

@@ -1,5 +1,5 @@
 import datetime
-from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, JSON, Boolean
+from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, JSON, Boolean, Text
 from sqlalchemy.orm import relationship
 from app.database.database import Base
 
@@ -165,3 +165,50 @@ class HealthNudge(Base):
 
     # Relationships
     patient = relationship("Patient", back_populates="health_nudges")
+
+class HeartPrediction(Base):
+    __tablename__ = "heart_predictions"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    public_id = Column(
+        String, 
+        default=lambda: str(uuid.uuid4()),
+        unique=True, index=True
+    )
+    patient_id = Column(
+        Integer, 
+        ForeignKey("users.id"), 
+        nullable=False,
+        index=True
+    )
+    
+    # Input features
+    age_years = Column(Float, nullable=False)
+    gender = Column(Integer, nullable=False)
+    height = Column(Float, nullable=False)
+    weight = Column(Float, nullable=False)
+    ap_hi = Column(Integer, nullable=False)
+    ap_lo = Column(Integer, nullable=False)
+    cholesterol = Column(Integer, nullable=False)
+    gluc = Column(Integer, nullable=False)
+    smoke = Column(Integer, nullable=False)
+    alco = Column(Integer, nullable=False)
+    active = Column(Integer, nullable=False)
+    bmi_calculated = Column(Float, nullable=False)
+    
+    # Results
+    risk_score = Column(Float, nullable=False)
+    risk_level = Column(String, nullable=False)
+    confidence_lower = Column(Float, nullable=True)
+    confidence_upper = Column(Float, nullable=True)
+    feature_contributions = Column(Text, nullable=True)
+    referral_recommendation = Column(String, nullable=True)
+    
+    created_at = Column(
+        DateTime, 
+        default=datetime.datetime.utcnow,
+        nullable=False
+    )
+    
+    # Relationship
+    patient = relationship("User", backref="heart_predictions")

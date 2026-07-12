@@ -9,7 +9,8 @@ import {
   Calendar,
   FileText,
   Activity,
-  Award
+  Award,
+  Heart
 } from 'lucide-react';
 import { 
   ResponsiveContainer, 
@@ -28,10 +29,11 @@ import {
 import { motion } from 'framer-motion';
 import { api } from '../services/api';
 import './DoctorDashboard.css';
-
+ 
 export default function DoctorDashboard() {
   const [patients, setPatients] = useState([]);
   const [predictionsMap, setPredictionsMap] = useState({});
+  const [heartPredictionsMap, setHeartPredictionsMap] = useState({});
   const [appointments, setAppointments] = useState([]);
   const [reportsMap, setReportsMap] = useState({});
   const [loading, setLoading] = useState(true);
@@ -52,6 +54,7 @@ export default function DoctorDashboard() {
 
       // Fetch predictions and reports for each patient in parallel
       const predsMap = {};
+      const heartPredsMap = {};
       const repsMap = {};
       await Promise.all(
         patientList.map(async (p) => {
@@ -62,6 +65,12 @@ export default function DoctorDashboard() {
             console.error(`Failed to load predictions for patient ${p.id}`, e);
           }
           try {
+            const heartPreds = await api.getHeartPredictionHistory(10, 0, p.id);
+            heartPredsMap[p.id] = heartPreds?.predictions || [];
+          } catch (e) {
+            console.error(`Failed to load heart predictions for patient ${p.id}`, e);
+          }
+          try {
             const reps = await api.getReports(p.id);
             repsMap[p.id] = reps;
           } catch (e) {
@@ -70,6 +79,7 @@ export default function DoctorDashboard() {
         })
       );
       setPredictionsMap(predsMap);
+      setHeartPredictionsMap(heartPredsMap);
       setReportsMap(repsMap);
     } catch (e) {
       console.error('Failed to load doctor dashboard stats', e);
@@ -123,24 +133,74 @@ export default function DoctorDashboard() {
     })).filter((item, idx) => idx <= new Date().getMonth() || item.Consultations > 0);
   };
 
-  // Filter Critical Patients (Risk Score > 70%)
+  // Filter Critical Patients (Risk Score > 70% or Heart Risk > 70%)
   const getCriticalPatients = () => {
     const criticalList = [];
     patients.forEach((p) => {
       const preds = predictionsMap[p.id] || [];
+      const heartPreds = heartPredictionsMap[p.id] || [];
+      
+      let isCritical = false;
+      let score = 0;
+      let detail = '';
+      
       if (preds.length > 0) {
         const latest = preds[preds.length - 1];
         if (latest.risk_score > 70) {
-          criticalList.push({
-            patient: p,
-            risk_score: latest.risk_score,
-            glucose: latest.input_features.glucose,
-            bmi: latest.input_features.bmi
-          });
+          isCritical = true;
+          score = latest.risk_score;
+          detail = `Diabetes: ${latest.risk_score}% (Glucose: ${latest.input_features.glucose} mg/dL)`;
         }
+      }
+      
+      if (heartPreds.length > 0) {
+        const latestHeart = heartPreds[0];
+        if (latestHeart.risk_score > 70) {
+          isCritical = true;
+          if (latestHeart.risk_score > score) {
+            score = latestHeart.risk_score;
+          }
+          const heartDetail = `Heart Risk: ${latestHeart.risk_score}% (BP: ${latestHeart.ap_hi}/${latestHeart.ap_lo} mmHg)`;
+          detail = detail ? `${detail} | ${heartDetail}` : heartDetail;
+        }
+      }
+      
+      if (isCritical) {
+        criticalList.push({
+          patient: p,
+          risk_score: score,
+          detail: detail
+        });
       }
     });
     return criticalList;
+  };
+
+  const getHeartPieData = () => {
+    let low = 0;
+    let moderate = 0;
+    let high = 0;
+    let noScan = 0;
+
+    patients.forEach((p) => {
+      const preds = heartPredictionsMap[p.id] || [];
+      if (preds.length === 0) {
+        noScan++;
+      } else {
+        const latest = preds[0];
+        const score = latest.risk_score;
+        if (score < 30) low++;
+        else if (score < 70) moderate++;
+        else high++;
+      }
+    });
+
+    return [
+      { name: 'Low Risk (<30%)', value: low, color: '#05CD99' },
+      { name: 'Medium Risk (30-70%)', value: moderate, color: '#FFB547' },
+      { name: 'High Risk (>70%)', value: high, color: '#EE5D50' },
+      { name: 'No Assessments', value: noScan, color: '#A3AED0' }
+    ].filter(item => item.value > 0);
   };
 
   if (loading) {
@@ -148,6 +208,7 @@ export default function DoctorDashboard() {
   }
 
   const pieData = getPieData();
+  const heartPieData = getHeartPieData();
   const monthlyApptsData = getMonthlyApptsData();
   const criticalPatients = getCriticalPatients();
 
@@ -156,8 +217,33 @@ export default function DoctorDashboard() {
   const highRiskPatientsCount = patients.filter(p => {
     const preds = predictionsMap[p.id] || [];
     const latest = preds[preds.length - 1];
-    return latest && latest.risk_score >= 60;
+    const heartPreds = heartPredictionsMap[p.id] || [];
+    const latestHeart = heartPreds[0];
+    return (latest && latest.risk_score >= 60) || (latestHeart && latestHeart.risk_score >= 70);
   }).length;
+
+  let totalDiabetesRisk = 0;
+  let diabetesScannedCount = 0;
+  let totalHeartRisk = 0;
+  let heartScannedCount = 0;
+
+  patients.forEach((p) => {
+    const preds = predictionsMap[p.id] || [];
+    const latest = preds[preds.length - 1];
+    if (latest) {
+      totalDiabetesRisk += latest.risk_score;
+      diabetesScannedCount++;
+    }
+    const heartPreds = heartPredictionsMap[p.id] || [];
+    const latestHeart = heartPreds[0];
+    if (latestHeart) {
+      totalHeartRisk += latestHeart.risk_score;
+      heartScannedCount++;
+    }
+  });
+
+  const avgDiabetesRisk = diabetesScannedCount > 0 ? Math.round(totalDiabetesRisk / diabetesScannedCount) : 0;
+  const avgHeartRisk = heartScannedCount > 0 ? Math.round(totalHeartRisk / heartScannedCount) : 0;
 
   const todayStr = new Date().toDateString();
   const appointmentsToday = appointments.filter(a => new Date(a.scheduled_at).toDateString() === todayStr).length;
@@ -243,7 +329,20 @@ export default function DoctorDashboard() {
           </div>
         </div>
 
-        {/* KPI 3: Appointments Today */}
+        {/* KPI 3: Average Population Risk */}
+        <div className="white-kpi-card">
+          <div className="kpi-icon-wrapper success-light" style={{ backgroundColor: 'rgba(5, 205, 153, 0.1)' }}>
+            <TrendingUp className="kpi-icon" size={24} style={{ color: '#05CD99' }} />
+          </div>
+          <div className="kpi-card-info">
+            <h3 className="kpi-value" style={{ fontSize: '20px' }}>
+              D: {avgDiabetesRisk}% | H: {avgHeartRisk}%
+            </h3>
+            <span className="kpi-label">Avg Population Risk</span>
+          </div>
+        </div>
+
+        {/* KPI 4: Appointments Today */}
         <div className="white-kpi-card">
           <div className="kpi-icon-wrapper accent-light">
             <Calendar className="kpi-icon" size={24} />
@@ -254,7 +353,7 @@ export default function DoctorDashboard() {
           </div>
         </div>
 
-        {/* KPI 4: Reports Pending */}
+        {/* KPI 5: Reports Pending */}
         <div className="white-kpi-card">
           <div className="kpi-icon-wrapper warning-light">
             <FileText className="kpi-icon" size={24} />
@@ -268,11 +367,11 @@ export default function DoctorDashboard() {
 
       {/* CHARTS CONTAINER GRID */}
       <div className="doctor-charts-grid">
-        {/* Pie Chart: Risk Distribution */}
+        {/* Pie Chart: Diabetes Risk Severity Distribution */}
         <div className="glass-card doctor-chart-card">
           <div className="card-title-row">
             <Activity size={18} className="card-icon" style={{ color: 'var(--accent)' }} />
-            <h3>Risk Severity Distribution</h3>
+            <h3>Diabetes Risk Distribution</h3>
           </div>
           {pieData.length === 0 ? (
             <p className="empty-text">No patient data available.</p>
@@ -311,8 +410,51 @@ export default function DoctorDashboard() {
           )}
         </div>
 
-        {/* Bar Chart: Monthly Consultations */}
+        {/* Pie Chart: Heart Risk Distribution */}
         <div className="glass-card doctor-chart-card">
+          <div className="card-title-row">
+            <Heart size={18} className="card-icon" style={{ color: '#ef4444' }} />
+            <h3>Heart Risk Distribution</h3>
+          </div>
+          {heartPieData.length === 0 ? (
+            <p className="empty-text">No heart disease assessments available.</p>
+          ) : (
+            <div className="recharts-wrapper">
+              <ResponsiveContainer width="100%" height={220}>
+                <PieChart>
+                  <Pie
+                    data={heartPieData}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={55}
+                    outerRadius={80}
+                    paddingAngle={4}
+                    dataKey="value"
+                  >
+                    {heartPieData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    contentStyle={{
+                      background: 'var(--bg-card)',
+                      border: '1px solid var(--border)',
+                      borderRadius: '8px',
+                      color: 'var(--text-primary)',
+                      fontFamily: 'var(--font-body)',
+                      fontSize: '12px',
+                      boxShadow: 'var(--shadow-md)'
+                    }}
+                  />
+                  <Legend verticalAlign="bottom" height={36} iconType="circle" wrapperStyle={{ fontSize: '11px', color: 'var(--text-secondary)' }} />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+        </div>
+
+        {/* Bar Chart: Monthly Consultations */}
+        <div className="glass-card doctor-chart-card" style={{ gridColumn: 'span 2' }}>
           <div className="card-title-row">
             <TrendingUp size={18} className="card-icon" style={{ color: 'var(--accent)' }} />
             <h3>Monthly Consultations</h3>
@@ -525,11 +667,11 @@ export default function DoctorDashboard() {
             <h3>High Risk Critical Patient Alerts</h3>
           </div>
           <div className="alerts-body-list">
-            {criticalPatients.map(({ patient: p, risk_score, glucose, bmi }) => (
+            {criticalPatients.map(({ patient: p, risk_score, detail }) => (
               <div key={p.id} className="clinical-alert-item-dashboard">
                 <div className="alert-text-meta">
                   <span className="alert-p-name">{p.user.name}</span>
-                  <span className="alert-p-detail">Glucose: {glucose} mg/dL | BMI: {bmi} (Severe parameters flagged)</span>
+                  <span className="alert-p-detail">{detail}</span>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                   <span className="badge badge-danger">{risk_score}% Risk</span>
