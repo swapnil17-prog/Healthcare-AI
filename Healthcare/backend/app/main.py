@@ -1,3 +1,6 @@
+from app.core.logging_config import setup_logging
+logger = setup_logging()
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi.errors import RateLimitExceeded
@@ -174,7 +177,25 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 
 app.add_middleware(SecurityHeadersMiddleware)
 
-# 2. Request size limit middleware
+# 2. NoCacheAPIMiddleware
+class NoCacheAPIMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+        
+        # Apply no-cache to all /api/ routes
+        if request.url.path.startswith("/api/"):
+            response.headers["Cache-Control"] = (
+                "no-store, no-cache, must-revalidate, "
+                "proxy-revalidate, max-age=0"
+            )
+            response.headers["Pragma"] = "no-cache"
+            response.headers["Expires"] = "0"
+        
+        return response
+
+app.add_middleware(NoCacheAPIMiddleware)
+
+# 3. Request size limit middleware
 @app.middleware("http")
 async def limit_request_size(request: Request, call_next):
     max_body_size = 10 * 1024 * 1024  # 10MB max
@@ -206,6 +227,29 @@ app.add_middleware(
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
+SENSITIVE_PATHS = [
+    "/api/auth/login",
+    "/api/auth/register", 
+    "/api/chat/stream",
+    "/api/predictions",
+]
+
+@app.middleware("http")
+async def safe_request_logger(request: Request, call_next):
+    path = request.url.path
+    is_sensitive = any(
+        path.startswith(p) for p in SENSITIVE_PATHS
+    )
+    
+    if not is_sensitive:
+        logger.info(f"Request: {request.method} {path}")
+    else:
+        logger.info(f"Request: {request.method} [sensitive-path]")
+    
+    response = await call_next(request)
+    logger.info(f"Response: {response.status_code}")
+    return response
+
 # Register API Routers
 app.include_router(auth.router, prefix="/api")
 app.include_router(patients.router, prefix="/api")
@@ -229,7 +273,7 @@ def run_daily_nudge_job():
     try:
         run_all_health_nudge_checks(db)
     except Exception as e:
-        print(f"Error in daily nudge task: {e}")
+        logger.error(f"Error in daily nudge task: {e}")
     finally:
         db.close()
 

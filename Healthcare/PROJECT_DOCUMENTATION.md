@@ -141,15 +141,22 @@ These files contain the controllers mapping requests to business services and re
 *   [recommendation.py](./backend/app/services/recommendation.py) – Implements the deterministic rule engine evaluating glucose levels, BMI, and diastolic BP thresholds to match patients with clinical specialists.
 *   [vector_store.py](./backend/app/services/vector_store.py) – Custom RAG vector index using TF-IDF matching. Extracts matching content blocks based on cosine similarities from medical guidelines and application instructions.
 *   [rate_limiter.py](./backend/app/core/rate_limiter.py) – Sets up a central rate-limiting manager utilizing the client's IP to safeguard auth, ML, and chat routes.
+*   [logging_config.py](./backend/app/core/logging_config.py) – Custom structured logging configuration containing `SensitiveDataFilter` to redact secrets and `setup_logging` initializer.
 
-#### Diagnostic Test Scripts (`backend/`)
+#### Diagnostic Test Scripts (`backend/test/`)
 Standalone diagnostic scripts executing test suites against a temporary in-memory database configuration:
-*   [test_auth.py](./backend/test_auth.py) – Verifies user registrations, duplicate handling, logins, profile checks, and token refreshing.
-*   [test_crud.py](./backend/test_crud.py) – Validates profile update constraints, medical history rights, and doctor assignment mechanics.
-*   [test_prediction.py](./backend/test_prediction.py) – Asserts ML classification calculations, default referrals, and history access blocks.
-*   [test_reports.py](./backend/test_reports.py) – Validates file extension checks (PDF/CSV), size blocks (>5MB), and download permissions.
-*   [test_chat.py](./backend/test_chat.py) – Tests the chatbot history endpoints and mock conversation generation.
-*   [test_pdf.py](./backend/test_pdf.py) – Confirms the ReportLab compilation process runs and yields structured files.
+*   [test_auth.py](./backend/test/test_auth.py) – Verifies user registrations, duplicate handling, logins, profile checks, and token refreshing.
+*   [test_crud.py](./backend/test/test_crud.py) – Validates profile update constraints, medical history rights, and doctor assignment mechanics.
+*   [test_prediction.py](./backend/test/test_prediction.py) – Asserts ML classification calculations, default referrals, and history access blocks.
+*   [test_reports.py](./backend/test/test_reports.py) – Validates file extension checks (PDF/CSV), size blocks (>5MB), and download permissions.
+*   [test_chat.py](./backend/test/test_chat.py) – Tests the chatbot history endpoints and mock conversation generation.
+*   [test_pdf.py](./backend/test/test_pdf.py) – Confirms the ReportLab compilation process runs and yields structured files.
+*   [test_idor.py](./backend/test/test_idor.py) – Asserts RBAC access levels on routes using UUIDs.
+*   [test_appointments_update.py](./backend/test/test_appointments_update.py) – Validates doctor schedules, cancellations, and notifications.
+*   [test_forecasting.py](./backend/test/test_forecasting.py) – Verifies risk score linear regression projection metrics.
+*   [test_health_nudges.py](./backend/test/test_health_nudges.py) – Confirms daily cron background scheduler generates nudges correctly.
+*   [test_security_upgrades.py](./backend/test/test_security_upgrades.py) – Validates brute-force lockout, origin domain checks, and token revoking.
+*   [test_xss_sanitization.py](./backend/test/test_xss_sanitization.py) – Asserts bleach sanitization strips dangerous tags/scripts.
 
 ---
 
@@ -236,6 +243,12 @@ Here is a summary of the features and engineering work implemented in the projec
 38. **Insecure Direct Object Reference (IDOR) Mitigation & UUID Predictable ID Protection:** Developed a comprehensive authorization layer across all backend routes. Introduced `check_ownership_or_403` helpers verifying that patients can only access their own records, doctors can only access assigned patients (via appointment relations), and admins can access all records. Normalized all 403 Forbidden details to `"Access denied: insufficient permissions"`. Introduced UUID-based `public_id` column to predictions, appointments, medical histories, and reports. Configured report downloads and single prediction queries to fetch using these unique UUID public IDs. Updated the frontend dashboard and test suites to interact with these non-predictable UUID keys.
 39. **Stored XSS Input Sanitization:** Integrated `bleach` to backend dependencies. Created `sanitizer.py` cleaning utilities using HTML tag bleaching, null-byte filters, whitespace normalization, and maximum character length bounds. Applied Pydantic validator methods to clean user names, patient addresses, medical history diagnosis/medications/notes, and appointment comments before database writes. Enforced chat message sanitization at the API entrypoint before pre-check safety deflections. Audited frontend React views (`ChatWidget.jsx`, dashboards, rosters) to ensure user parameters render securely as plain text, avoiding `dangerouslySetInnerHTML`.
 40. **Test Directory Reorganization:** Created a dedicated `backend/test/` directory and relocated all 12 test files (`test_*.py`) inside it to separate application code from test code.
+41. **Cache-Control Security Headers middleware:** Registered `NoCacheAPIMiddleware` in `main.py` applying `Cache-Control` no-store/no-cache headers to all sensitive `/api/` endpoints containing patient data to prevent client-side credential/medical caching.
+42. **API Pagination & Response Envelopes:** Implemented generic Pydantic `PaginatedEnvelope` models across list endpoints (admin, predictions, history, appointments, reports, chat, patients) with hard caps of max 100/50/30 items to enforce resource limits.
+43. **Frontend API Slice Unpacking:** Customized `frontend/src/services/apiSlice.js` using `transformResponse` to unpack `items` envelopes, keeping dashboards fully backward compatible.
+44. **Timing Attack Authentication Defense:** Normalised auth timings for non-existent users and wrong password entries by executing timing-safe bcrypt verification using a module-level pre-computed dummy hash.
+45. **Structured Logging Redaction & Middleware:** Added `logging_config.py` with `SensitiveDataFilter` to scrub emails, passwords, JWT tokens, API keys, and patient vitals from console logs, and built `safe_request_logger` middleware masking sensitive request directories.
+46. **Root Logging Migration:** Audited and replaced all `print()` calls in the codebase (ML inference, RAG vectors, chat helpers, tasks) with proper root `logger` statements.
 
 ---
 

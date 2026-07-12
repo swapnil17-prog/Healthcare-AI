@@ -2,8 +2,11 @@ import os
 import json
 import asyncio
 import re
+import logging
+
+logger = logging.getLogger(__name__)
 from datetime import datetime
-from fastapi import APIRouter, Depends, HTTPException, status, Request
+from fastapi import APIRouter, Depends, HTTPException, status, Request, Query
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -13,6 +16,7 @@ import anthropic
 from app.database.database import get_db, SessionLocal
 from app.models.models import ChatMessage, Patient, Prediction, User, MedicalHistory, Appointment, HealthNudge
 from app.auth.dependencies import get_current_user, check_ownership_or_403
+from app.schemas.schemas import PaginatedEnvelope
 from app.core.rate_limiter import limiter
 from app.services.vector_store import vector_store
 from app.services.sanitizer import sanitize_chat_message
@@ -156,7 +160,7 @@ def pre_check_safety(message: str) -> Optional[str]:
 
 # Database lookup helper functions for LLM tools
 def get_full_medical_history(patient_id: int, db: Session) -> str:
-    print(f"DEBUG TOOL CALL: get_full_medical_history for patient_id={patient_id}")
+    logger.info(f"DEBUG TOOL CALL: get_full_medical_history for patient_id={patient_id}")
     records = db.query(MedicalHistory).filter(MedicalHistory.patient_id == patient_id).all()
     if not records:
         return "No medical history records found."
@@ -166,7 +170,7 @@ def get_full_medical_history(patient_id: int, db: Session) -> str:
     return "\n".join(result)
 
 def get_prediction_history(patient_id: int, db: Session) -> str:
-    print(f"DEBUG TOOL CALL: get_prediction_history for patient_id={patient_id}")
+    logger.info(f"DEBUG TOOL CALL: get_prediction_history for patient_id={patient_id}")
     records = db.query(Prediction).filter(Prediction.patient_id == patient_id).order_by(Prediction.created_at.desc()).all()
     if not records:
         return "No prediction history records found."
@@ -176,7 +180,7 @@ def get_prediction_history(patient_id: int, db: Session) -> str:
     return "\n".join(result)
 
 def get_appointments(patient_id: int, db: Session) -> str:
-    print(f"DEBUG TOOL CALL: get_appointments for patient_id={patient_id}")
+    logger.info(f"DEBUG TOOL CALL: get_appointments for patient_id={patient_id}")
     records = db.query(Appointment).filter(Appointment.patient_id == patient_id).order_by(Appointment.scheduled_at.desc()).all()
     if not records:
         return "No appointments found."
@@ -243,9 +247,11 @@ GROQ_TOOLS = [
     }
 ]
 
-@router.get("/history", response_model=List[ChatMessageOut])
+@router.get("/history", response_model=PaginatedEnvelope[ChatMessageOut])
 def read_chat_history(
     patient_id: Optional[int] = None,
+    limit: int = Query(default=30, ge=1, le=50),
+    skip: int = Query(default=0, ge=0),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -262,13 +268,16 @@ def read_chat_history(
         check_ownership_or_403(patient_id, current_user, db)
         target_user_id = patient.user_id
 
-    # Fetch recent 30 messages for target user, ordered by creation time ascending
-    history = db.query(ChatMessage)\
-        .filter(ChatMessage.user_id == target_user_id)\
-        .order_by(ChatMessage.created_at.asc())\
-        .limit(30)\
-        .all()
-    return history
+    query = db.query(ChatMessage).filter(ChatMessage.user_id == target_user_id)
+    total = query.count()
+    history = query.order_by(ChatMessage.created_at.asc()).offset(skip).limit(limit).all()
+    
+    return {
+        "items": history,
+        "total": total,
+        "limit": limit,
+        "skip": skip
+    }
 
 @router.delete("/history")
 def clear_chat_history(

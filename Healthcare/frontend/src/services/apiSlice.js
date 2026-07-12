@@ -74,10 +74,12 @@ export const apiSlice = createApi({
     
     getPatients: builder.query({
       query: () => '/patients',
+      transformResponse: (response) => response?.items || response,
       providesTags: ['Patients'],
     }),
     getDoctors: builder.query({
       query: () => '/patients/doctors',
+      transformResponse: (response) => response?.items || response,
     }),
     getPatient: builder.query({
       query: (id) => `/patients/${id}`,
@@ -94,6 +96,7 @@ export const apiSlice = createApi({
     
     getMedicalHistory: builder.query({
       query: (patientId) => `/patients/${patientId}/medical-history`,
+      transformResponse: (response) => response?.items || response,
       providesTags: ['MedicalHistory'],
     }),
     addMedicalHistory: builder.mutation({
@@ -114,6 +117,7 @@ export const apiSlice = createApi({
     
     getAppointments: builder.query({
       query: () => '/appointments',
+      transformResponse: (response) => response?.items || response,
       providesTags: ['Appointments'],
     }),
     createAppointment: builder.mutation({
@@ -135,6 +139,7 @@ export const apiSlice = createApi({
     
     getPredictions: builder.query({
       query: (patientId) => `/patients/${patientId}/predictions`,
+      transformResponse: (response) => response?.items || response,
       providesTags: ['Predictions'],
     }),
     runPrediction: builder.mutation({
@@ -156,6 +161,7 @@ export const apiSlice = createApi({
     
     getReports: builder.query({
       query: (patientId) => `/patients/${patientId}/reports`,
+      transformResponse: (response) => response?.items || response,
       providesTags: ['Reports'],
     }),
     getHealthNudges: builder.query({
@@ -199,6 +205,7 @@ export const apiSlice = createApi({
     
     getChatHistory: builder.query({
       query: () => '/chat/history',
+      transformResponse: (response) => response?.items || response,
       providesTags: ['Chat'],
     }),
     clearChatHistory: builder.mutation({
@@ -221,6 +228,7 @@ export const apiSlice = createApi({
         if (params.length) url += `?${params.join('&')}`;
         return url;
       },
+      transformResponse: (response) => response?.items || response,
       providesTags: ['AdminUsers'],
     }),
     createAdminUser: builder.mutation({
@@ -247,6 +255,7 @@ export const apiSlice = createApi({
     }),
     getAssignments: builder.query({
       query: () => '/admin/assignments',
+      transformResponse: (response) => response?.items || response,
       providesTags: ['Assignments'],
     }),
     createAssignment: builder.mutation({

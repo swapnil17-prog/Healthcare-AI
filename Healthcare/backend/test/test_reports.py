@@ -59,7 +59,7 @@ def test_reports_upload_and_download():
 
     # 3. Retrieve Patient profile IDs
     print("\n3. Finding Patient profile IDs...")
-    patients_list = client.get("/api/patients", headers=admin_headers).json()
+    patients_list = client.get("/api/patients", headers=admin_headers).json()["items"]
     
     pat_a_profile = next(p for p in patients_list if p["user"]["email"] == patient_a_data["email"])
     pat_b_profile = next(p for p in patients_list if p["user"]["email"] == patient_b_data["email"])
@@ -99,7 +99,7 @@ def test_reports_upload_and_download():
     # Verify that a prediction is automatically triggered and saved with correct values
     predictions_res = client.get(f"/api/patients/{pat_a_id}/predictions", headers=pat_a_headers)
     assert predictions_res.status_code == 200
-    preds_list = predictions_res.json()
+    preds_list = predictions_res.json()["items"]
     assert len(preds_list) > 0
     latest_pred = preds_list[-1]
     assert latest_pred["model_name"] == "Pima Indians Diabetes (via Lab Report)"
@@ -139,7 +139,7 @@ def test_reports_upload_and_download():
     # Doctor (assigned to Patient A) lists Patient A's reports (should succeed)
     list_doc_res = client.get(f"/api/patients/{pat_a_id}/reports", headers=doctor_headers)
     assert list_doc_res.status_code == 200
-    assert len(list_doc_res.json()) >= 1
+    assert len(list_doc_res.json()["items"]) >= 1
     print("OK Assigned Doctor can list Patient A reports.")
 
     # Patient B (unassigned) lists Patient A's reports (should fail)

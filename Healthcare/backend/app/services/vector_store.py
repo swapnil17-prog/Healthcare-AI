@@ -1,6 +1,9 @@
 import os
 import re
 import numpy as np
+import logging
+
+logger = logging.getLogger(__name__)
 
 # Sample clinical guidelines and application instructions documents to index (used as fallback)
 GUIDELINES_DOCUMENTS = [
@@ -103,7 +106,7 @@ def load_documents_from_kb(kb_dir: str) -> list:
                     "content": content
                 })
             except Exception as e:
-                print(f"Error reading file {filename}: {e}")
+                logger.error(f"Error reading file {filename}: {e}")
     return documents
 
 def chunk_document(doc: dict, chunk_size: int = 300, overlap: int = 50) -> list:

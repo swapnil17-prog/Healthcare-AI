@@ -1,8 +1,8 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from app.database.database import get_db
 from app.models.models import User, Patient, Appointment, LabReport, Prediction
-from app.schemas.schemas import (AdminUserCreate, AdminUserResponse, AdminStatsResponse, AdminAssignRequest)
+from app.schemas.schemas import (AdminUserCreate, AdminUserResponse, AdminStatsResponse, AdminAssignRequest, PaginatedEnvelope)
 from app.auth.dependencies import require_role, get_current_user
 from app.auth.security import get_password_hash
 from datetime import datetime, time, timedelta
@@ -41,10 +41,12 @@ def get_stats(db: Session = Depends(get_db)):
         "total_reports": total_reports
     }
 
-@router.get("/users", response_model=List[AdminUserResponse])
+@router.get("/users", response_model=PaginatedEnvelope[AdminUserResponse])
 def get_users(
     role: Optional[str] = None,
     search: Optional[str] = None,
+    limit: int = Query(default=50, ge=1, le=100),
+    skip: int = Query(default=0, ge=0),
     db: Session = Depends(get_db)
 ):
     query = db.query(User)
@@ -55,7 +57,8 @@ def get_users(
     if search:
         query = query.filter(User.name.ilike(f"%{search}%"))
         
-    users = query.all()
+    total = query.count()
+    users = query.offset(skip).limit(limit).all()
     results = []
     
     for user in users:
@@ -89,7 +92,12 @@ def get_users(
             "patient_count": patient_count
         })
         
-    return results
+    return {
+        "items": results,
+        "total": total,
+        "limit": limit,
+        "skip": skip
+    }
 
 @router.post("/users", response_model=AdminUserResponse)
 def create_user(
@@ -221,8 +229,14 @@ def delete_user(
     return {"status": "success", "message": "User deleted successfully"}
 
 @router.get("/assignments")
-def get_assignments(db: Session = Depends(get_db)):
-    patients = db.query(Patient).all()
+def get_assignments(
+    limit: int = Query(default=50, ge=1, le=100),
+    skip: int = Query(default=0, ge=0),
+    db: Session = Depends(get_db)
+):
+    query = db.query(Patient)
+    total = query.count()
+    patients = query.offset(skip).limit(limit).all()
     results = []
     
     for patient in patients:
@@ -250,7 +264,12 @@ def get_assignments(db: Session = Depends(get_db)):
             "assigned_doctor_name": assigned_doctor_name
         })
         
-    return results
+    return {
+        "items": results,
+        "total": total,
+        "limit": limit,
+        "skip": skip
+    }
 
 @router.post("/assignments")
 def assign_patient(

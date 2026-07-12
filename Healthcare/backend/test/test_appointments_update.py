@@ -44,7 +44,7 @@ def test_appointment_update_flow():
 
     # 3. Find Patient & Doctor IDs
     print("\n3. Finding profiles...")
-    patients_list = client.get("/api/patients", headers=admin_headers).json()
+    patients_list = client.get("/api/patients", headers=admin_headers).json()["items"]
     patient_profile = next(p for p in patients_list if p["user"]["email"] == pat_data["email"])
     patient_id = patient_profile["id"]
 

@@ -1,45 +1,68 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from typing import List
 from app.database.database import get_db
 from app.models.models import Patient, Appointment, User
 from app.schemas.patients import PatientUpdate, PatientOut
-from app.schemas.schemas import UserOut
+from app.schemas.schemas import UserOut, PaginatedEnvelope
 from app.auth.dependencies import get_current_user, require_roles, check_ownership_or_403
 
 
 router = APIRouter(prefix="/patients", tags=["patients"])
 
-@router.get("", response_model=List[PatientOut])
+@router.get("", response_model=PaginatedEnvelope[PatientOut])
 def read_patients(
+    limit: int = Query(default=50, ge=1, le=100),
+    skip: int = Query(default=0, ge=0),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     if current_user.role == "admin":
-        return db.query(Patient).all()
+        query = db.query(Patient)
         
     elif current_user.role == "doctor":
         # Return patients assigned to this doctor
-        patients = db.query(Patient).filter(Patient.id.in_(
+        query = db.query(Patient).filter(Patient.id.in_(
             db.query(Appointment.patient_id).filter(Appointment.doctor_id == current_user.id).subquery()
-        )).all()
-        return patients
+        ))
             
     elif current_user.role == "patient":
         # Return only the patient's own profile (as a single-item list for API signature consistency)
-        patient = db.query(Patient).filter(Patient.user_id == current_user.id).first()
-        return [patient] if patient else []
+        query = db.query(Patient).filter(Patient.user_id == current_user.id)
         
-    raise HTTPException(
-        status_code=status.HTTP_403_FORBIDDEN,
-        detail="Access denied: insufficient permissions"
-    )
-@router.get("/doctors", response_model=List[UserOut])
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied: insufficient permissions"
+        )
+        
+    total = query.count()
+    items = query.offset(skip).limit(limit).all()
+    
+    return {
+        "items": items,
+        "total": total,
+        "limit": limit,
+        "skip": skip
+    }
+
+@router.get("/doctors", response_model=PaginatedEnvelope[UserOut])
 def read_doctors(
+    limit: int = Query(default=50, ge=1, le=100),
+    skip: int = Query(default=0, ge=0),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    return db.query(User).filter(User.role == "doctor").all()
+    query = db.query(User).filter(User.role == "doctor")
+    total = query.count()
+    items = query.offset(skip).limit(limit).all()
+    
+    return {
+        "items": items,
+        "total": total,
+        "limit": limit,
+        "skip": skip
+    }
 
 @router.get("/{id}", response_model=PatientOut)
 def read_patient(

@@ -10,6 +10,7 @@ from app.schemas.schemas import UserCreate, UserLogin, Token, UserOut
 from app.auth.security import (
     get_password_hash,
     verify_password,
+    verify_password_safe,
     create_access_token,
     create_refresh_token,
     decode_refresh_token,
@@ -64,31 +65,33 @@ from datetime import datetime, timedelta
 @router.post("/login", response_model=Token)
 def login(response: Response, login_in: UserLogin, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.email == login_in.email).first()
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid email or password"
-        )
+    
+    # Always run password check (normalizes timing)
+    password_valid = verify_password_safe(
+        login_in.password, 
+        user.password_hash if user else None
+    )
         
     # Check if account is locked
-    if user.locked_until and user.locked_until > datetime.utcnow():
+    if user and user.locked_until and user.locked_until > datetime.utcnow():
         minutes_left = int((user.locked_until - datetime.utcnow()).total_seconds() / 60) + 1
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=f"Account locked. Try again in {minutes_left} minutes."
         )
         
-    if not verify_password(login_in.password, user.password_hash):
-        user.login_attempts = (user.login_attempts or 0) + 1
-        if user.login_attempts >= 5:
-            user.locked_until = datetime.utcnow() + timedelta(minutes=15)
-            user.login_attempts = 0
+    if not user or not password_valid:
+        if user:
+            user.login_attempts = (user.login_attempts or 0) + 1
+            if user.login_attempts >= 5:
+                user.locked_until = datetime.utcnow() + timedelta(minutes=15)
+                user.login_attempts = 0
+                db.commit()
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Account locked. Try again in 15 minutes."
+                )
             db.commit()
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Account locked. Try again in 15 minutes."
-            )
-        db.commit()
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid email or password"

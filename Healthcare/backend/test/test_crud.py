@@ -60,7 +60,7 @@ def test_crud_rbac():
     # 3. Retrieve Patient profile IDs
     print("\n3. Finding created Patient profile IDs...")
     # Admin gets all patients list
-    patients_list = client.get("/api/patients", headers=admin_headers).json()
+    patients_list = client.get("/api/patients", headers=admin_headers).json()["items"]
     
     # Filter for our newly created patient profiles
     pat_a_profile = next(p for p in patients_list if p["user"]["email"] == patient_a_data["email"])
@@ -177,8 +177,8 @@ def test_crud_rbac():
     # Patient A reads their own medical history (should succeed)
     hist_read_self = client.get(f"/api/patients/{pat_a_id}/medical-history", headers=pat_a_headers)
     assert hist_read_self.status_code == 200
-    assert len(hist_read_self.json()) > 0
-    assert hist_read_self.json()[0]["disease"] == "Type 2 Diabetes"
+    assert len(hist_read_self.json()["items"]) > 0
+    assert hist_read_self.json()["items"][0]["disease"] == "Type 2 Diabetes"
     print("OK Patient A read their own medical history successfully.")
 
     # Doctor reads Patient A's medical history (should succeed)

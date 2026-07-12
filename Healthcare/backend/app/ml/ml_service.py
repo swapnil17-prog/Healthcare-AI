@@ -1,6 +1,9 @@
 import os
 import sys
 import pickle
+import logging
+
+logger = logging.getLogger(__name__)
 
 # Ensure the parent folders are importable if needed
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
@@ -22,11 +25,11 @@ class MLService:
                 # Python pickle needs the exact same module structure to load classes
                 with open(MODEL_PATH, "rb") as f:
                     self.model = pickle.load(f)
-                print(f"ML Model loaded successfully from {MODEL_PATH}")
+                logger.info(f"ML Model loaded successfully from {MODEL_PATH}")
             except Exception as e:
-                print(f"Error loading ML Model from {MODEL_PATH}: {e}")
+                logger.error(f"Error loading ML Model from {MODEL_PATH}: {e}")
         else:
-            print(f"ML Model file not found at {MODEL_PATH}")
+            logger.warning(f"ML Model file not found at {MODEL_PATH}")
 
     def predict(
         self,
@@ -65,7 +68,7 @@ class MLService:
         try:
             contributions = self.model.explain_prediction(input_row)
         except Exception as e:
-            print(f"Error computing explain_prediction: {e}")
+            logger.error(f"Error computing explain_prediction: {e}")
             contributions = {
                 "pregnancies": 0.0,
                 "glucose": 0.0,

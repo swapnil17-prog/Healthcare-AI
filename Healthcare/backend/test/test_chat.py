@@ -45,7 +45,7 @@ def test_chatbot_service():
     headers = {"Authorization": f"Bearer {token}"}
     
     # Get Patient ID
-    patients_list = client.get("/api/patients", headers=headers).json()
+    patients_list = client.get("/api/patients", headers=headers).json()["items"]
     patient_id = patients_list[0]["id"]
     print(f"Patient Profile ID: {patient_id}")
 
@@ -191,7 +191,7 @@ def test_chatbot_service():
         print("\n6. Fetching conversation history...")
         history_res = client.get("/api/chat/history", headers=headers)
         assert history_res.status_code == 200
-        history = history_res.json()
+        history = history_res.json()["items"]
         print(f"Chat messages in history: {len(history)}")
         assert len(history) >= 4
         

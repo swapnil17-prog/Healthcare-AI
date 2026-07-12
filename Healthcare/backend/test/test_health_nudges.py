@@ -175,7 +175,7 @@ def test_health_nudges_flow():
         # Verify history is empty now
         history_res = client.get("/api/chat/history", headers={"Authorization": f"Bearer {pat_a_tok}"})
         assert history_res.status_code == 200
-        assert len(history_res.json()) == 0
+        assert len(history_res.json()["items"]) == 0
         
     finally:
         db.close()

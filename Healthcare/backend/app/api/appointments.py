@@ -1,9 +1,10 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from typing import List
 from app.database.database import get_db
 from app.models.models import Appointment, Patient, User
 from app.schemas.appointments import AppointmentCreate, AppointmentOut, AppointmentUpdate
+from app.schemas.schemas import PaginatedEnvelope
 from app.auth.dependencies import get_current_user, check_ownership_or_403
 
 router = APIRouter(prefix="/appointments", tags=["appointments"])
@@ -58,24 +59,47 @@ def create_appointment(
     db.refresh(db_appointment)
     return db_appointment
 
-@router.get("", response_model=List[AppointmentOut])
+@router.get("", response_model=PaginatedEnvelope[AppointmentOut])
 def read_appointments(
+    limit: int = Query(default=50, ge=1, le=100),
+    skip: int = Query(default=0, ge=0),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     # Return appointments depending on role
+    query = db.query(Appointment)
     if current_user.role == "admin":
-        return db.query(Appointment).all()
+        pass
     elif current_user.role == "doctor":
-        return db.query(Appointment).filter(Appointment.doctor_id == current_user.id).all()
+        query = query.filter(Appointment.doctor_id == current_user.id)
     elif current_user.role == "patient":
         # Get the patient record first
         patient = db.query(Patient).filter(Patient.user_id == current_user.id).first()
         if not patient:
-            return []
-        return db.query(Appointment).filter(Appointment.patient_id == patient.id).all()
-        
-    return []
+            return {
+                "items": [],
+                "total": 0,
+                "limit": limit,
+                "skip": skip
+            }
+        query = query.filter(Appointment.patient_id == patient.id)
+    else:
+        return {
+            "items": [],
+            "total": 0,
+            "limit": limit,
+            "skip": skip
+        }
+
+    total = query.count()
+    items = query.offset(skip).limit(limit).all()
+    
+    return {
+        "items": items,
+        "total": total,
+        "limit": limit,
+        "skip": skip
+    }
 
 
 @router.put("/{id}", response_model=AppointmentOut)

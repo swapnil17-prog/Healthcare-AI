@@ -1,12 +1,13 @@
 import os
 import uuid
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form, Query
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 from typing import List
 from app.database.database import get_db
 from app.models.models import LabReport, Patient, Appointment, User
 from app.schemas.reports import LabReportOut
+from app.schemas.schemas import PaginatedEnvelope
 from app.auth.dependencies import get_current_user, check_ownership_or_403
 from app.models.models import Prediction
 from app.ml.ml_service import ml_service
@@ -330,9 +331,11 @@ async def upload_lab_report(
             
     return db_report
 
-@router.get("/patients/{patient_id}/reports", response_model=List[LabReportOut])
+@router.get("/patients/{patient_id}/reports", response_model=PaginatedEnvelope[LabReportOut])
 def read_patient_reports(
     patient_id: int,
+    limit: int = Query(default=50, ge=1, le=100),
+    skip: int = Query(default=0, ge=0),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -346,7 +349,16 @@ def read_patient_reports(
     # Check access permission
     check_ownership_or_403(patient_id, current_user, db)
     
-    return db.query(LabReport).filter(LabReport.patient_id == patient_id).all()
+    query = db.query(LabReport).filter(LabReport.patient_id == patient_id)
+    total = query.count()
+    items = query.offset(skip).limit(limit).all()
+    
+    return {
+        "items": items,
+        "total": total,
+        "limit": limit,
+        "skip": skip
+    }
 
 @router.get("/reports/{public_id}/download")
 def download_lab_report(

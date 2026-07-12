@@ -36,7 +36,7 @@ def test_pdf_report_generation():
     headers = {"Authorization": f"Bearer {token}"}
     
     # Get Patient ID
-    patients_list = client.get("/api/patients", headers=headers).json()
+    patients_list = client.get("/api/patients", headers=headers).json()["items"]
     patient_id = patients_list[0]["id"]
     print(f"Patient Profile ID: {patient_id}")
 

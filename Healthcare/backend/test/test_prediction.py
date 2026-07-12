@@ -59,7 +59,7 @@ def test_prediction_and_referrals():
 
     # 3. Retrieve Patient profile IDs
     print("\n3. Finding Patient profile IDs...")
-    patients_list = client.get("/api/patients", headers=admin_headers).json()
+    patients_list = client.get("/api/patients", headers=admin_headers).json()["items"]
     
     patient_profile = next(p for p in patients_list if p["user"]["email"] == patient_data["email"])
     unassigned_profile = next(p for p in patients_list if p["user"]["email"] == unassigned_patient_data["email"])
@@ -145,7 +145,7 @@ def test_prediction_and_referrals():
     print("\n7. Fetching patient prediction history...")
     history_res = client.get(f"/api/patients/{patient_id}/predictions", headers=patient_headers)
     assert history_res.status_code == 200
-    history_data = history_res.json()
+    history_data = history_res.json()["items"]
     print(f"Predictions in history: {len(history_data)}")
     assert len(history_data) >= 2
     for item in history_data:

@@ -93,3 +93,16 @@ class AdminStatsResponse(BaseModel):
 class AdminAssignRequest(BaseModel):
     patient_id: int
     doctor_id: int
+
+from typing import Generic, TypeVar, List
+
+T = TypeVar('T')
+
+class PaginatedEnvelope(BaseModel, Generic[T]):
+    items: List[T]
+    total: int
+    limit: int
+    skip: int
+
+    class Config:
+        from_attributes = True

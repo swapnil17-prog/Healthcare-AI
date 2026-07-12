@@ -6,6 +6,26 @@ import bcrypt
 from jose import jwt
 import uuid
 
+# Pre-computed dummy hash — takes same time to verify as real hash
+DUMMY_HASH = bcrypt.hashpw(b"dummy_password_for_timing_safety", bcrypt.gensalt()).decode("utf-8")
+
+def verify_password_safe(plain_password: str, hashed_password: str | None) -> bool:
+    """
+    Always runs bcrypt comparison to normalize timing.
+    Returns False if hashed_password is None (dummy run).
+    """
+    if hashed_password is None:
+        # Run dummy comparison to normalize timing
+        bcrypt.checkpw(plain_password.encode("utf-8"), DUMMY_HASH.encode("utf-8"))
+        return False
+    try:
+        return bcrypt.checkpw(
+            plain_password.encode("utf-8"),
+            hashed_password.encode("utf-8")
+        )
+    except Exception:
+        return False
+
 # Secret keys for JWT signing
 SECRET_KEY = os.getenv("JWT_SECRET_KEY", "super_secret_key_for_development_only_12345")
 REFRESH_SECRET_KEY = os.getenv("JWT_REFRESH_SECRET_KEY", "super_secret_refresh_key_for_development_only_12345")

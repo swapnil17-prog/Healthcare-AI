@@ -1,9 +1,10 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Request
+from fastapi import APIRouter, Depends, HTTPException, status, Request, Query
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from app.database.database import get_db
 from app.models.models import Prediction, Patient, Appointment, User
 from app.schemas.predictions import PredictionRequest, PredictionOut
+from app.schemas.schemas import PaginatedEnvelope
 from app.ml.ml_service import ml_service
 from app.services.recommendation import get_doctor_recommendations
 from app.auth.dependencies import get_current_user, check_ownership_or_403
@@ -105,9 +106,11 @@ def run_prediction(
         recommendations=recommendations
     )
 
-@router.get("/patients/{patient_id}/predictions", response_model=List[PredictionOut])
+@router.get("/patients/{patient_id}/predictions", response_model=PaginatedEnvelope[PredictionOut])
 def read_patient_predictions(
     patient_id: int,
+    limit: int = Query(default=50, ge=1, le=50),
+    skip: int = Query(default=0, ge=0),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -122,7 +125,9 @@ def read_patient_predictions(
     # Access Control Check via helper
     check_ownership_or_403(patient_id, current_user, db)
         
-    predictions = db.query(Prediction).filter(Prediction.patient_id == patient_id).all()
+    query = db.query(Prediction).filter(Prediction.patient_id == patient_id)
+    total = query.count()
+    predictions = query.offset(skip).limit(limit).all()
     
     # Build output objects, dynamically running the recommendation rule engine
     results = []
@@ -165,7 +170,12 @@ def read_patient_predictions(
             recommendations=recommendations
         ))
         
-    return results
+    return {
+        "items": results,
+        "total": total,
+        "limit": limit,
+        "skip": skip
+    }
 
 @router.get("/forecast")
 async def get_risk_forecast(
