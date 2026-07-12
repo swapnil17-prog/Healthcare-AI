@@ -43,10 +43,19 @@ class Patient(Base):
     appointments = relationship("Appointment", back_populates="patient", foreign_keys="[Appointment.patient_id]", cascade="all, delete-orphan")
     health_nudges = relationship("HealthNudge", back_populates="patient", cascade="all, delete-orphan")
 
+import uuid
+
 class MedicalHistory(Base):
     __tablename__ = "medical_histories"
 
     id = Column(Integer, primary_key=True, index=True)
+    public_id = Column(
+        String, 
+        default=lambda: str(uuid.uuid4()),
+        unique=True,
+        index=True,
+        nullable=False
+    )
     patient_id = Column(Integer, ForeignKey("patients.id", ondelete="CASCADE"), nullable=False)
     disease = Column(String, nullable=False)
     diagnosis_date = Column(DateTime, nullable=False)
@@ -60,6 +69,13 @@ class LabReport(Base):
     __tablename__ = "lab_reports"
 
     id = Column(Integer, primary_key=True, index=True)
+    public_id = Column(
+        String, 
+        default=lambda: str(uuid.uuid4()),
+        unique=True,
+        index=True,
+        nullable=False
+    )
     patient_id = Column(Integer, ForeignKey("patients.id", ondelete="CASCADE"), nullable=False)
     file_path = Column(String, nullable=False)
     upload_date = Column(DateTime, default=datetime.datetime.utcnow)
@@ -72,6 +88,13 @@ class Prediction(Base):
     __tablename__ = "predictions"
 
     id = Column(Integer, primary_key=True, index=True)
+    public_id = Column(
+        String, 
+        default=lambda: str(uuid.uuid4()),
+        unique=True,
+        index=True,
+        nullable=False
+    )
     patient_id = Column(Integer, ForeignKey("patients.id", ondelete="CASCADE"), nullable=False)
     model_name = Column(String, nullable=False)  # e.g. "Pima Indians Diabetes"
     input_features = Column(JSON, nullable=False)  # Store JSON dictionary of features
@@ -87,6 +110,13 @@ class Appointment(Base):
     __tablename__ = "appointments"
 
     id = Column(Integer, primary_key=True, index=True)
+    public_id = Column(
+        String, 
+        default=lambda: str(uuid.uuid4()),
+        unique=True,
+        index=True,
+        nullable=False
+    )
     patient_id = Column(Integer, ForeignKey("patients.id", ondelete="CASCADE"), nullable=False)
     doctor_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     scheduled_at = Column(DateTime, nullable=False)

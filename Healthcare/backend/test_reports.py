@@ -92,6 +92,7 @@ def test_reports_upload_and_download():
     print(f"Response Body: {upload_res.json()}")
     assert upload_res.status_code == 201
     report_id = upload_res.json()["id"]
+    report_public_id = upload_res.json()["public_id"]
     assert "uploads/reports" in upload_res.json()["file_path"]
     assert upload_res.json()["report_type"] == "Glucose Panel"
     
@@ -150,19 +151,19 @@ def test_reports_upload_and_download():
     print("\n9. Testing downloading lab reports...")
     
     # Patient A downloads their own report (should succeed)
-    download_self_res = client.get(f"/api/reports/{report_id}/download", headers=pat_a_headers)
+    download_self_res = client.get(f"/api/reports/{report_public_id}/download", headers=pat_a_headers)
     assert download_self_res.status_code == 200
     assert download_self_res.text == csv_content
     print("OK Patient A downloaded their own report successfully.")
 
     # Doctor (assigned) downloads report (should succeed)
-    download_doc_res = client.get(f"/api/reports/{report_id}/download", headers=doctor_headers)
+    download_doc_res = client.get(f"/api/reports/{report_public_id}/download", headers=doctor_headers)
     assert download_doc_res.status_code == 200
     assert download_doc_res.text == csv_content
     print("OK Assigned Doctor downloaded Patient A report successfully.")
 
     # Patient B (unassigned) attempts download (should fail)
-    download_cross_res = client.get(f"/api/reports/{report_id}/download", headers=pat_b_headers)
+    download_cross_res = client.get(f"/api/reports/{report_public_id}/download", headers=pat_b_headers)
     assert download_cross_res.status_code == 403
     print("OK Unrelated patient blocked from downloading report correctly.")
 

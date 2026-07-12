@@ -83,10 +83,10 @@ def test_crud_rbac():
     assert res_cross.status_code == 403
     print("OK Cross-patient viewing blocked correctly (Patient B cannot see Patient A).")
 
-    # Doctor should be able to view Patient A's profile (globally registered visibility)
+    # Doctor should NOT be able to view Patient A's profile BEFORE assignment
     res_doc = client.get(f"/api/patients/{pat_a_id}", headers=doctor_headers)
-    assert res_doc.status_code == 200
-    print("OK Doctor can view Patient A profile successfully.")
+    assert res_doc.status_code == 403
+    print("OK Doctor blocked from viewing unassigned Patient A profile.")
 
     # 5. Create appointment to establish doctor assignment
     print("\n5. Creating appointment to assign Patient A to Doctor...")
@@ -109,10 +109,10 @@ def test_crud_rbac():
     assert res_doc_post.status_code == 200
     print("OK Doctor can view assigned Patient A successfully!")
 
-    # Doctor should be able to view Patient B (globally registered visibility)
+    # Doctor should NOT be able to view Patient B BEFORE assignment
     res_doc_unassigned = client.get(f"/api/patients/{pat_b_id}", headers=doctor_headers)
-    assert res_doc_unassigned.status_code == 200
-    print("OK Doctor can view Patient B successfully.")
+    assert res_doc_unassigned.status_code == 403
+    print("OK Doctor blocked from viewing unassigned Patient B profile.")
 
     # 7. Test Patient profile update
     print("\n7. Testing Patient demographic update...")
@@ -141,6 +141,16 @@ def test_crud_rbac():
     # 8. Test Medical History CRUD (Stage 3)
     print("\n8. Testing Medical History CRUD operations...")
     
+    # Establish Doctor-Patient B assignment via appointment first
+    appt_b_payload = {
+        "patient_id": pat_b_id,
+        "doctor_id": doctor_user_id,
+        "scheduled_at": "2026-07-02T10:00:00",
+        "status": "Scheduled",
+        "notes": "Follow-up check"
+    }
+    client.post("/api/appointments", json=appt_b_payload, headers=admin_headers)
+
     history_payload = {
         "disease": "Type 2 Diabetes",
         "diagnosis_date": "2026-06-20T22:00:00",
@@ -148,7 +158,7 @@ def test_crud_rbac():
         "notes": "Patient reports mild fatigue"
     }
 
-    # Doctor attempts to create history for Patient B (should succeed)
+    # Doctor attempts to create history for Patient B (should succeed now that doctor is assigned)
     hist_fail_res = client.post(f"/api/patients/{pat_b_id}/medical-history", json=history_payload, headers=doctor_headers)
     assert hist_fail_res.status_code == 201
     print("OK Doctor can add medical history to Patient B.")

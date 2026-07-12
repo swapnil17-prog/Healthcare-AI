@@ -351,7 +351,7 @@ export default function PatientRecords() {
                       <span style={{ fontSize: '11px', color: 'hsl(var(--text-muted))' }}>Uploaded on {new Date(r.uploaded_at).toLocaleDateString()}</span>
                     </div>
                     <a 
-                      href={`http://127.0.0.1:8000/api/reports/${r.id}/download`} 
+                      href={`http://127.0.0.1:8000/api/reports/${r.public_id}/download`} 
                       className="btn btn-secondary" 
                       style={{ padding: '6px 12px', fontSize: '11px', textDecoration: 'none' }}
                       download

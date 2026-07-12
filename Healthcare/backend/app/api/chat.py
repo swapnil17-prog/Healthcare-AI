@@ -12,7 +12,7 @@ import anthropic
 
 from app.database.database import get_db, SessionLocal
 from app.models.models import ChatMessage, Patient, Prediction, User, MedicalHistory, Appointment, HealthNudge
-from app.auth.dependencies import get_current_user
+from app.auth.dependencies import get_current_user, check_ownership_or_403
 from app.core.rate_limiter import limiter
 from app.services.vector_store import vector_store
 
@@ -244,12 +244,26 @@ GROQ_TOOLS = [
 
 @router.get("/history", response_model=List[ChatMessageOut])
 def read_chat_history(
+    patient_id: Optional[int] = None,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    # Fetch recent 30 messages for this user, ordered by creation time ascending
+    if current_user.role == "patient" or patient_id is None:
+        target_user_id = current_user.id
+    else:
+        patient = db.query(Patient).filter(Patient.id == patient_id).first()
+        if not patient:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Patient not found"
+            )
+        # Apply ownership check
+        check_ownership_or_403(patient_id, current_user, db)
+        target_user_id = patient.user_id
+
+    # Fetch recent 30 messages for target user, ordered by creation time ascending
     history = db.query(ChatMessage)\
-        .filter(ChatMessage.user_id == current_user.id)\
+        .filter(ChatMessage.user_id == target_user_id)\
         .order_by(ChatMessage.created_at.asc())\
         .limit(30)\
         .all()

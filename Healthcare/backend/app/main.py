@@ -61,6 +61,53 @@ try:
 except Exception:
     pass
 
+# Ensure public_id column exists in predictions table for existing databases
+try:
+    with engine.connect() as conn:
+        conn.execute(text("ALTER TABLE predictions ADD COLUMN public_id VARCHAR(36)"))
+        conn.commit()
+except Exception:
+    pass
+
+# Ensure public_id column exists in lab_reports table for existing databases
+try:
+    with engine.connect() as conn:
+        conn.execute(text("ALTER TABLE lab_reports ADD COLUMN public_id VARCHAR(36)"))
+        conn.commit()
+except Exception:
+    pass
+
+# Ensure public_id column exists in medical_histories table for existing databases
+try:
+    with engine.connect() as conn:
+        conn.execute(text("ALTER TABLE medical_histories ADD COLUMN public_id VARCHAR(36)"))
+        conn.commit()
+except Exception:
+    pass
+
+# Ensure public_id column exists in appointments table for existing databases
+try:
+    with engine.connect() as conn:
+        conn.execute(text("ALTER TABLE appointments ADD COLUMN public_id VARCHAR(36)"))
+        conn.commit()
+except Exception:
+    pass
+
+# Populate null public_ids for all tables
+import uuid
+try:
+    with engine.connect() as conn:
+        for table in ["predictions", "lab_reports", "medical_histories", "appointments"]:
+            rows = conn.execute(text(f"SELECT id FROM {table} WHERE public_id IS NULL")).fetchall()
+            for r in rows:
+                conn.execute(
+                    text(f"UPDATE {table} SET public_id = :val WHERE id = :id"),
+                    {"val": str(uuid.uuid4()), "id": r[0]}
+                )
+        conn.commit()
+except Exception:
+    pass
+
 DEBUG_MODE = os.getenv("DEBUG", "true").lower() == "true"
 app = FastAPI(
     title="Healthcare AI Patient Risk Prediction API",

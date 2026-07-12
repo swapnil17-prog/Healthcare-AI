@@ -14,6 +14,7 @@ class AppointmentCreate(AppointmentBase):
 
 class AppointmentOut(AppointmentBase):
     id: int
+    public_id: str
     patient_id: int
     doctor_id: int
 

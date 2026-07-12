@@ -7,7 +7,7 @@ from typing import List
 from app.database.database import get_db
 from app.models.models import LabReport, Patient, Appointment, User
 from app.schemas.reports import LabReportOut
-from app.auth.dependencies import get_current_user
+from app.auth.dependencies import get_current_user, check_ownership_or_403
 from app.models.models import Prediction
 from app.ml.ml_service import ml_service
 from app.services.recommendation import get_doctor_recommendations
@@ -161,8 +161,8 @@ async def upload_lab_report(
             detail="Patient not found"
         )
         
-    # Check access permission
-    validate_patient_access(current_user, patient, db)
+    # Check access permission via helper
+    check_ownership_or_403(patient_id, current_user, db)
     
     # 1. Validate file extension (only PDF or CSV)
     filename = file.filename or ""
@@ -344,33 +344,25 @@ def read_patient_reports(
         )
         
     # Check access permission
-    validate_patient_access(current_user, patient, db)
+    check_ownership_or_403(patient_id, current_user, db)
     
     return db.query(LabReport).filter(LabReport.patient_id == patient_id).all()
 
-@router.get("/reports/{id}/download")
+@router.get("/reports/{public_id}/download")
 def download_lab_report(
-    id: int,
+    public_id: str,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    report = db.query(LabReport).filter(LabReport.id == id).first()
+    report = db.query(LabReport).filter(LabReport.public_id == public_id).first()
     if not report:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Lab report not found"
         )
         
-    # Get associated patient
-    patient = db.query(Patient).filter(Patient.id == report.patient_id).first()
-    if not patient:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Patient association not found for this report"
-        )
-        
-    # Check access permission
-    validate_patient_access(current_user, patient, db)
+    # Check access permission via helper
+    check_ownership_or_403(report.patient_id, current_user, db)
     
     # Resolve absolute path
     absolute_path = os.path.join(BASE_DIR, report.file_path)

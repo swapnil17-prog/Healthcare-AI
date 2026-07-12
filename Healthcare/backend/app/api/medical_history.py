@@ -4,7 +4,7 @@ from typing import List
 from app.database.database import get_db
 from app.models.models import MedicalHistory, Patient, Appointment, User
 from app.schemas.medical_history import MedicalHistoryCreate, MedicalHistoryUpdate, MedicalHistoryOut
-from app.auth.dependencies import get_current_user
+from app.auth.dependencies import get_current_user, check_ownership_or_403
 
 router = APIRouter(tags=["medical_history"])
 
@@ -30,22 +30,8 @@ def read_patient_medical_history(
             detail="Patient not found"
         )
         
-    # Access Control Checks
-    if current_user.role == "admin":
-        pass
-    elif current_user.role == "doctor":
-        pass
-    elif current_user.role == "patient":
-        if patient.user_id != current_user.id:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Access denied. You can only view your own medical history."
-            )
-    else:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Unauthorized access"
-        )
+    # Access Control Check via helper
+    check_ownership_or_403(patient_id, current_user, db)
         
     return db.query(MedicalHistory).filter(MedicalHistory.patient_id == patient_id).all()
 
@@ -64,15 +50,14 @@ def create_medical_history(
             detail="Patient not found"
         )
         
-    # Access Control: Only admin and assigned doctors can write medical history
-    if current_user.role == "admin":
-        pass
-    elif current_user.role == "doctor":
-        pass
-    else:
+    # Access Control Check via helper
+    check_ownership_or_403(patient_id, current_user, db)
+        
+    # Only doctor and admin can write medical history
+    if current_user.role not in ["admin", "doctor"]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied. Only doctors or admins can create medical history."
+            detail="Access denied: insufficient permissions"
         )
         
     db_history = MedicalHistory(
@@ -102,15 +87,14 @@ def update_medical_history(
             detail="Medical history record not found"
         )
         
-    # Access Control: Only admin and assigned doctors can edit medical history
-    if current_user.role == "admin":
-        pass
-    elif current_user.role == "doctor":
-        pass
-    else:
+    # Access Control Check via helper
+    check_ownership_or_403(db_history.patient_id, current_user, db)
+        
+    # Only doctor and admin can edit medical history
+    if current_user.role not in ["admin", "doctor"]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied. Only doctors or admins can update medical history."
+            detail="Access denied: insufficient permissions"
         )
         
     # Update fields
@@ -135,11 +119,14 @@ def delete_medical_history(
             detail="Medical history record not found"
         )
         
+    # Access Control Check via helper
+    check_ownership_or_403(db_history.patient_id, current_user, db)
+        
     # Access Control: Only admin can delete medical history
     if current_user.role != "admin":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied. Only administrators can delete medical history."
+            detail="Access denied: insufficient permissions"
         )
         
     db.delete(db_history)

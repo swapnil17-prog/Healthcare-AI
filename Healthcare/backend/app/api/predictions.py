@@ -6,7 +6,7 @@ from app.models.models import Prediction, Patient, Appointment, User
 from app.schemas.predictions import PredictionRequest, PredictionOut
 from app.ml.ml_service import ml_service
 from app.services.recommendation import get_doctor_recommendations
-from app.auth.dependencies import get_current_user
+from app.auth.dependencies import get_current_user, check_ownership_or_403
 from app.core.rate_limiter import limiter
 
 router = APIRouter(tags=["predictions"])
@@ -36,22 +36,8 @@ def run_prediction(
             detail="Patient not found"
         )
         
-    # Access Control Check
-    if current_user.role == "admin":
-        pass
-    elif current_user.role == "doctor":
-        pass
-    elif current_user.role == "patient":
-        if patient.user_id != current_user.id:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Access denied. You can only run predictions for yourself."
-            )
-    else:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Unauthorized access"
-        )
+    # Access Control Check via helper
+    check_ownership_or_403(patient_id, current_user, db)
         
     # Run ML Inference
     try:
@@ -108,6 +94,7 @@ def run_prediction(
     # Build schema output including recommendations list
     return PredictionOut(
         id=db_prediction.id,
+        public_id=db_prediction.public_id,
         patient_id=db_prediction.patient_id,
         model_name=db_prediction.model_name,
         input_features=db_prediction.input_features,
@@ -132,22 +119,8 @@ def read_patient_predictions(
             detail="Patient not found"
         )
         
-    # Access Control Check
-    if current_user.role == "admin":
-        pass
-    elif current_user.role == "doctor":
-        pass
-    elif current_user.role == "patient":
-        if patient.user_id != current_user.id:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Access denied. You can only view your own predictions."
-            )
-    else:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Unauthorized access"
-        )
+    # Access Control Check via helper
+    check_ownership_or_403(patient_id, current_user, db)
         
     predictions = db.query(Prediction).filter(Prediction.patient_id == patient_id).all()
     
@@ -181,6 +154,7 @@ def read_patient_predictions(
                 
         results.append(PredictionOut(
             id=pred.id,
+            public_id=pred.public_id,
             patient_id=pred.patient_id,
             model_name=pred.model_name,
             input_features=pred.input_features,
@@ -206,52 +180,35 @@ async def get_risk_forecast(
     for a specific patient.
     """
     # Determine the target patient
-    if patient_id is not None:
+    if current_user.role == "patient":
+        # Force current patient
+        patient = db.query(Patient).filter(Patient.user_id == current_user.id).first()
+        if not patient:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Patient profile not found"
+            )
+        patient_id = patient.id
+    else:
+        # Doctors/Admins must specify patient_id
+        if patient_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="patient_id parameter is required for doctor/admin roles"
+            )
         patient = db.query(Patient).filter(Patient.id == patient_id).first()
         if not patient:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Patient not found"
             )
-        # Access control Check
-        if current_user.role == "admin":
-            pass
-        elif current_user.role == "doctor":
-            if not is_doctor_assigned(db, current_user.id, patient.id):
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="Access denied. You are not assigned to this patient."
-                )
-        elif current_user.role == "patient":
-            if patient.user_id != current_user.id:
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="Access denied. You can only view your own forecast."
-                )
-        else:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Unauthorized access"
-            )
-    else:
-        # If no patient_id provided, default to current patient if the user is a patient
-        if current_user.role == "patient":
-            patient = db.query(Patient).filter(Patient.user_id == current_user.id).first()
-            if not patient:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="Patient profile not found"
-                )
-        else:
-            # Doctors/Admins must specify patient_id
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="patient_id parameter is required for doctor/admin roles"
-            )
+            
+    # Access Control Check via helper
+    check_ownership_or_403(patient_id, current_user, db)
             
     # Query full prediction history for this patient
     predictions = db.query(Prediction)\
-        .filter(Prediction.patient_id == patient.id)\
+        .filter(Prediction.patient_id == patient_id)\
         .order_by(Prediction.created_at.asc())\
         .all()
     
@@ -271,3 +228,40 @@ async def get_risk_forecast(
     forecast = generate_forecast(history, months_ahead)
     
     return forecast
+
+@router.get("/predictions/{public_id}", response_model=PredictionOut)
+def read_prediction_by_public_id(
+    public_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    prediction = db.query(Prediction).filter(Prediction.public_id == public_id).first()
+    if not prediction:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Prediction not found"
+        )
+        
+    # Access Control Check via helper
+    check_ownership_or_403(prediction.patient_id, current_user, db)
+    
+    features = prediction.input_features
+    recommendations = get_doctor_recommendations(
+        risk_score=prediction.risk_score,
+        glucose=features.get("glucose", 0.0),
+        blood_pressure=features.get("blood_pressure", 0.0),
+        bmi=features.get("bmi", 0.0)
+    )
+    
+    return PredictionOut(
+        id=prediction.id,
+        public_id=prediction.public_id,
+        patient_id=prediction.patient_id,
+        model_name=prediction.model_name,
+        input_features=prediction.input_features,
+        feature_contributions=prediction.feature_contributions,
+        risk_score=prediction.risk_score,
+        prediction=prediction.prediction,
+        created_at=prediction.created_at,
+        recommendations=recommendations
+    )

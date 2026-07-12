@@ -231,18 +231,7 @@ def test_chatbot_service():
         doc_token = doc_login.json()["access_token"]
         doc_headers = {"Authorization": f"Bearer {doc_token}"}
         
-        # Write medical history record
-        history_payload = {
-            "disease": "Type 2 Diabetes",
-            "diagnosis_date": "2025-01-15T00:00:00",
-            "medications": "Metformin 500mg daily",
-            "notes": "Monitor fasting glucose."
-        }
-        history_create_res = client.post(f"/api/patients/{patient_id}/medical-history", json=history_payload, headers=doc_headers)
-        assert history_create_res.status_code == 201
-        print("OK Medical history created by clinician.")
-        
-        # Write appointment record
+        # Write appointment record to establish doctor assignment
         appointment_payload = {
             "scheduled_at": "2026-07-01T10:00:00",
             "status": "Scheduled",
@@ -253,6 +242,17 @@ def test_chatbot_service():
         appt_create_res = client.post("/api/appointments", json=appointment_payload, headers=doc_headers)
         assert appt_create_res.status_code == 201
         print("OK Appointment created by clinician.")
+
+        # Write medical history record
+        history_payload = {
+            "disease": "Type 2 Diabetes",
+            "diagnosis_date": "2025-01-15T00:00:00",
+            "medications": "Metformin 500mg daily",
+            "notes": "Monitor fasting glucose."
+        }
+        history_create_res = client.post(f"/api/patients/{patient_id}/medical-history", json=history_payload, headers=doc_headers)
+        assert history_create_res.status_code == 201
+        print("OK Medical history created by clinician.")
 
         # 9. Test dynamic tool-calling/mock db retrieval
         print("\n9. Testing dynamic tool-calling / mock fallback DB retrieval...")

@@ -96,6 +96,19 @@ def test_security_features():
     patient_a = db.query(Patient).filter(Patient.user_id == user_id).first()
     patient_a_id = patient_a.id
     
+    # Assign Dr. Security to patient_a_id to allow file upload checks
+    from app.models.models import Appointment
+    import datetime
+    doc_user = db.query(User).filter(User.email == email_b).first()
+    appt = Appointment(
+        patient_id=patient_a_id,
+        doctor_id=doc_user.id,
+        scheduled_at=datetime.datetime.utcnow() + datetime.timedelta(days=1),
+        status="Scheduled"
+    )
+    db.add(appt)
+    db.commit()
+    
     # Try uploading a dangerous file renamed as .pdf
     fake_pdf = b"MZ\x90\x00\x03\x00\x00\x00this is an exe virus"
     files = {"file": ("virus.pdf", fake_pdf, "application/pdf")}

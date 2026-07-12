@@ -4,7 +4,7 @@ from typing import List
 from app.database.database import get_db
 from app.models.models import Appointment, Patient, User
 from app.schemas.appointments import AppointmentCreate, AppointmentOut, AppointmentUpdate
-from app.auth.dependencies import get_current_user
+from app.auth.dependencies import get_current_user, check_ownership_or_403
 
 router = APIRouter(prefix="/appointments", tags=["appointments"])
 
@@ -21,6 +21,15 @@ def create_appointment(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Patient not found"
         )
+        
+    # Access Control: Patient can only create appointments for themselves
+    if current_user.role == "patient":
+        patient_profile = db.query(Patient).filter(Patient.user_id == current_user.id).first()
+        if not patient_profile or appt_in.patient_id != patient_profile.id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied: insufficient permissions"
+            )
         
     # Set doctor_id: If doctor, enforce their own ID; if admin, allow any; if patient, allow scheduling.
     # To keep it flexible for testing, we let admin specify the doctor_id, and default others or validate.
@@ -83,32 +92,29 @@ def update_appointment(
             detail="Appointment not found"
         )
         
-    # Access Control checks
+    # Access Control Check via helper
+    check_ownership_or_403(appt.patient_id, current_user, db)
+        
+    # Extra role-based validation
     if current_user.role == "patient":
-        patient = db.query(Patient).filter(Patient.user_id == current_user.id).first()
-        if not patient or appt.patient_id != patient.id:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Access denied. You can only update your own appointments."
-            )
         # Patients can only change status to "Cancelled" or modify date (reschedule)
         if appt_in.status and appt_in.status != "Cancelled":
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Patients are only authorized to cancel appointments."
+                detail="Access denied: insufficient permissions"
             )
     elif current_user.role == "doctor":
         if appt.doctor_id != current_user.id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Access denied. This appointment is assigned to another clinician."
+                detail="Access denied: insufficient permissions"
             )
     elif current_user.role == "admin":
         pass
     else:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Unauthorized access"
+            detail="Access denied: insufficient permissions"
         )
         
     # Update properties

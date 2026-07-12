@@ -19,6 +19,7 @@ class MedicalHistoryUpdate(BaseModel):
 
 class MedicalHistoryOut(MedicalHistoryBase):
     id: int
+    public_id: str
     patient_id: int
 
     class Config:

@@ -12,6 +12,7 @@ class PredictionRequest(BaseModel):
 
 class PredictionOut(BaseModel):
     id: int
+    public_id: str
     patient_id: int
     model_name: str
     input_features: Dict[str, Any]

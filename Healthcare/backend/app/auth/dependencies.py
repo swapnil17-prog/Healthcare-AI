@@ -78,3 +78,48 @@ def require_role(role: str):
 
 def require_roles(*roles: str):
     return Depends(RoleChecker(list(roles)))
+
+from app.models.models import Patient, Appointment
+
+def verify_patient_ownership(
+    record_patient_id: int,
+    current_user,
+    db
+) -> bool:
+    """
+    Verifies current user can access a record belonging to record_patient_id (Patient.id).
+    Returns True if access allowed, False if denied.
+    """
+    # Admin can access everything
+    if current_user.role == "admin":
+        return True
+    
+    # Patient can only access own records
+    if current_user.role == "patient":
+        patient = db.query(Patient).filter(Patient.user_id == current_user.id).first()
+        return patient is not None and record_patient_id == patient.id
+    
+    # Doctor can only access assigned patients
+    if current_user.role == "doctor":
+        # Check if there is an appointment between the doctor and patient
+        appointment = db.query(Appointment).filter(
+            Appointment.patient_id == record_patient_id,
+            Appointment.doctor_id == current_user.id
+        ).first()
+        return appointment is not None
+    
+    return False
+
+def check_ownership_or_403(
+    record_patient_id: int,
+    current_user,
+    db
+):
+    """
+    Raises 403 if current user cannot access the record.
+    """
+    if not verify_patient_ownership(record_patient_id, current_user, db):
+        raise HTTPException(
+            status_code=403,
+            detail="Access denied: insufficient permissions"
+        )

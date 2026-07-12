@@ -5,7 +5,7 @@ from app.database.database import get_db
 from app.models.models import Patient, Appointment, User
 from app.schemas.patients import PatientUpdate, PatientOut
 from app.schemas.schemas import UserOut
-from app.auth.dependencies import get_current_user, require_roles
+from app.auth.dependencies import get_current_user, require_roles, check_ownership_or_403
 
 
 router = APIRouter(prefix="/patients", tags=["patients"])
@@ -19,8 +19,11 @@ def read_patients(
         return db.query(Patient).all()
         
     elif current_user.role == "doctor":
-        # Return all registered patients
-        return db.query(Patient).all()
+        # Return patients assigned to this doctor
+        patients = db.query(Patient).filter(Patient.id.in_(
+            db.query(Appointment.patient_id).filter(Appointment.doctor_id == current_user.id).subquery()
+        )).all()
+        return patients
             
     elif current_user.role == "patient":
         # Return only the patient's own profile (as a single-item list for API signature consistency)
@@ -29,7 +32,7 @@ def read_patients(
         
     raise HTTPException(
         status_code=status.HTTP_403_FORBIDDEN,
-        detail="Unauthorized access"
+        detail="Access denied: insufficient permissions"
     )
 @router.get("/doctors", response_model=List[UserOut])
 def read_doctors(
@@ -51,27 +54,9 @@ def read_patient(
             detail="Patient not found"
         )
         
-    # Access Control Checks
-    if current_user.role == "admin":
-        return patient
-        
-    elif current_user.role == "doctor":
-        # Doctor can view any patient
-        return patient
-        
-    elif current_user.role == "patient":
-        # Patient can view only their own record
-        if patient.user_id != current_user.id:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Access denied. You can only view your own records."
-            )
-        return patient
-        
-    raise HTTPException(
-        status_code=status.HTTP_403_FORBIDDEN,
-        detail="Unauthorized access"
-    )
+    # Access Control Check via helper
+    check_ownership_or_403(id, current_user, db)
+    return patient
 
 @router.put("/{id}", response_model=PatientOut)
 def update_patient(
@@ -91,12 +76,12 @@ def update_patient(
     if current_user.role == "patient" and patient.user_id != current_user.id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied. You can only edit your own record."
+            detail="Access denied: insufficient permissions"
         )
     elif current_user.role not in ["admin", "patient"]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied. Only patients or admins can edit patient profiles."
+            detail="Access denied: insufficient permissions"
         )
         
     # Update fields
