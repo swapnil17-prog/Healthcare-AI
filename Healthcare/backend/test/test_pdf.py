@@ -54,6 +54,25 @@ def test_pdf_report_generation():
     assert pred_res.status_code == 201
     print("OK Patient prediction record written.")
 
+    # 3.5. Create a heart disease prediction for patient
+    print("\n3.5. Creating heart disease prediction for patient history...")
+    heart_payload = {
+        "age_years": 45,
+        "gender": 1,
+        "height": 165,
+        "weight": 70.0,
+        "ap_hi": 125,
+        "ap_lo": 82,
+        "cholesterol": 1,
+        "gluc": 1,
+        "smoke": 0,
+        "alco": 0,
+        "active": 1
+    }
+    heart_res = client.post("/api/heart/predict", json=heart_payload, headers=headers)
+    assert heart_res.status_code == 200
+    print("OK Patient heart prediction record written.")
+
     # 4. Generate PDF Report
     print("\n4. Triggering PDF Generation request...")
     pdf_res = client.get(f"/api/patients/{patient_id}/pdf-report", headers=headers)

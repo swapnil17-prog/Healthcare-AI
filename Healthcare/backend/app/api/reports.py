@@ -305,7 +305,9 @@ async def upload_lab_report(
                 risk_score=risk_score,
                 glucose=final_glucose,
                 blood_pressure=final_blood_pressure,
-                bmi=final_bmi
+                bmi=final_bmi,
+                db=db,
+                patient_id=patient_id
             )
             
             input_features_dict = {

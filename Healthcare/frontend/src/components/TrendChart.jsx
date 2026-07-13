@@ -1,7 +1,7 @@
 import React from 'react';
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, Legend, CartesianGrid, ReferenceLine } from 'recharts';
 
-export default function TrendChart({ predictions = [], forecast = null }) {
+export default function TrendChart({ predictions = [], forecast = null, type = 'diabetes' }) {
   if (!predictions || !Array.isArray(predictions) || predictions.length === 0) {
     return (
       <div style={{ padding: '40px 20px', textAlign: 'center', color: 'hsl(var(--text-muted))' }}>
@@ -12,19 +12,33 @@ export default function TrendChart({ predictions = [], forecast = null }) {
 
   // Format historical data
   const historicalData = predictions
-    .map((p) => ({
-      date: new Date(p.created_at).toLocaleDateString([], { month: 'short', day: 'numeric' }),
-      'Risk Score (%)': p.risk_score,
-      'Glucose (mg/dL)': p.input_features?.glucose || 0,
-      'BMI': p.input_features?.bmi || 0,
-      projected_risk: null,
-    }))
+    .map((p) => {
+      const date = new Date(p.created_at).toLocaleDateString([], { month: 'short', day: 'numeric' });
+      if (type === 'heart') {
+        return {
+          date,
+          'Risk Score (%)': p.risk_score,
+          'Systolic BP': p.ap_hi || 0,
+          'Diastolic BP': p.ap_lo || 0,
+          'BMI': p.bmi_calculated || 0,
+          projected_risk: null,
+        };
+      } else {
+        return {
+          date,
+          'Risk Score (%)': p.risk_score,
+          'Glucose (mg/dL)': p.input_features?.glucose || 0,
+          'BMI': p.input_features?.bmi || 0,
+          projected_risk: null,
+        };
+      }
+    })
     .slice(-10); // Show last 10 screenings
 
   let data = [...historicalData];
 
   // Merge projected scores if available
-  if (forecast && forecast.projected_scores && forecast.projected_scores.length > 0) {
+  if (type === 'diabetes' && forecast && forecast.projected_scores && forecast.projected_scores.length > 0) {
     const projectedData = forecast.projected_scores.map((item) => ({
       date: new Date(item.date).toLocaleDateString([], { month: 'short', day: 'numeric' }),
       'Risk Score (%)': null,
@@ -78,25 +92,51 @@ export default function TrendChart({ predictions = [], forecast = null }) {
             isAnimationActive={true}
             animationDuration={1000}
           />
-          <Line
-            type="monotone"
-            dataKey="projected_risk"
-            stroke="#EE5D50"
-            strokeWidth={2}
-            strokeDasharray="6 3"
-            dot={{ r: 4, fill: "#EE5D50" }}
-            name="Projected Risk"
-            connectNulls={false}
-          />
-          <Line
-            type="monotone"
-            dataKey="Glucose (mg/dL)"
-            stroke="#14b8a6"
-            strokeWidth={2}
-            dot={{ stroke: '#0d9488', strokeWidth: 1, r: 3 }}
-            isAnimationActive={true}
-            animationDuration={1000}
-          />
+          {type === 'diabetes' && (
+            <Line
+              type="monotone"
+              dataKey="projected_risk"
+              stroke="#EE5D50"
+              strokeWidth={2}
+              strokeDasharray="6 3"
+              dot={{ r: 4, fill: "#EE5D50" }}
+              name="Projected Risk"
+              connectNulls={false}
+            />
+          )}
+          {type === 'diabetes' && (
+            <Line
+              type="monotone"
+              dataKey="Glucose (mg/dL)"
+              stroke="#14b8a6"
+              strokeWidth={2}
+              dot={{ stroke: '#0d9488', strokeWidth: 1, r: 3 }}
+              isAnimationActive={true}
+              animationDuration={1000}
+            />
+          )}
+          {type === 'heart' && (
+            <>
+              <Line
+                type="monotone"
+                dataKey="Systolic BP"
+                stroke="#f59e0b"
+                strokeWidth={2}
+                dot={{ stroke: '#d97706', strokeWidth: 1, r: 3 }}
+                isAnimationActive={true}
+                animationDuration={1000}
+              />
+              <Line
+                type="monotone"
+                dataKey="Diastolic BP"
+                stroke="#10b981"
+                strokeWidth={2}
+                dot={{ stroke: '#059669', strokeWidth: 1, r: 3 }}
+                isAnimationActive={true}
+                animationDuration={1000}
+              />
+            </>
+          )}
           <Line
             type="monotone"
             dataKey="BMI"

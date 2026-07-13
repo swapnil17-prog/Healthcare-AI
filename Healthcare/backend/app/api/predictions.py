@@ -65,7 +65,9 @@ def run_prediction(
         risk_score=risk_score,
         glucose=req.glucose,
         blood_pressure=req.blood_pressure,
-        bmi=req.bmi
+        bmi=req.bmi,
+        db=db,
+        patient_id=patient_id
     )
     
     # Map input features to dictionary
@@ -138,7 +140,9 @@ def read_patient_predictions(
             risk_score=pred.risk_score,
             glucose=features.get("glucose", 0.0),
             blood_pressure=features.get("blood_pressure", 0.0),
-            bmi=features.get("bmi", 0.0)
+            bmi=features.get("bmi", 0.0),
+            db=db,
+            patient_id=patient_id
         )
         
         # Fallback calculation if not stored (e.g. for older prediction log items)
@@ -260,7 +264,9 @@ def read_prediction_by_public_id(
         risk_score=prediction.risk_score,
         glucose=features.get("glucose", 0.0),
         blood_pressure=features.get("blood_pressure", 0.0),
-        bmi=features.get("bmi", 0.0)
+        bmi=features.get("bmi", 0.0),
+        db=db,
+        patient_id=prediction.patient_id
     )
     
     return PredictionOut(

@@ -46,10 +46,12 @@ export default function DoctorDashboard() {
   const loadDoctorData = async () => {
     setLoading(true);
     try {
-      const patientList = await api.getPatients();
+      const patientData = await api.getPatients();
+      const patientList = Array.isArray(patientData) ? patientData : patientData?.items || [];
       setPatients(patientList);
 
-      const apptList = await api.getAppointments();
+      const apptData = await api.getAppointments();
+      const apptList = Array.isArray(apptData) ? apptData : apptData?.items || [];
       setAppointments(apptList);
 
       // Fetch predictions and reports for each patient in parallel
@@ -59,7 +61,8 @@ export default function DoctorDashboard() {
       await Promise.all(
         patientList.map(async (p) => {
           try {
-            const preds = await api.getPredictions(p.id);
+            const predsData = await api.getPredictions(p.id);
+            const preds = Array.isArray(predsData) ? predsData : predsData?.items || [];
             predsMap[p.id] = preds;
           } catch (e) {
             console.error(`Failed to load predictions for patient ${p.id}`, e);
@@ -71,7 +74,8 @@ export default function DoctorDashboard() {
             console.error(`Failed to load heart predictions for patient ${p.id}`, e);
           }
           try {
-            const reps = await api.getReports(p.id);
+            const repsData = await api.getReports(p.id);
+            const reps = Array.isArray(repsData) ? repsData : repsData?.items || [];
             repsMap[p.id] = reps;
           } catch (e) {
             console.error(`Failed to load reports for patient ${p.id}`, e);

@@ -28,6 +28,7 @@ import {
   useAddMedicalHistoryMutation,
   useDeleteMedicalHistoryMutation,
   useGetRiskForecastQuery,
+  useGetHeartPredictionHistoryQuery,
   downloadPdfReport,
   downloadReportFile
 } from '../services/apiSlice';
@@ -50,6 +51,12 @@ export default function Patients() {
     { patientId: selectedPatientId },
     { skip: !selectedPatientId }
   );
+  const { data: heartHistoryData } = useGetHeartPredictionHistoryQuery(
+    { patientId: selectedPatientId, limit: 10 },
+    { skip: !selectedPatientId }
+  );
+  const heartPredictionsData = heartHistoryData?.predictions || [];
+  const [trendType, setTrendType] = useState('diabetes');
 
   const [updatePatient] = useUpdatePatientMutation();
   const [uploadReport, { isLoading: uploadLoading }] = useUploadReportMutation();
@@ -103,14 +110,16 @@ export default function Patients() {
   const loadExtraRosterDetails = async () => {
     setExtraLoading(true);
     try {
-      const appts = await api.getAppointments();
+      const apptsData = await api.getAppointments();
+      const appts = Array.isArray(apptsData) ? apptsData : apptsData?.items || [];
       setAppointments(appts);
 
       const predsMap = {};
       await Promise.all(
         patients.map(async (p) => {
           try {
-            const preds = await api.getPredictions(p.id);
+            const predsData = await api.getPredictions(p.id);
+            const preds = Array.isArray(predsData) ? predsData : predsData?.items || [];
             predsMap[p.id] = preds;
           } catch (e) {
             console.error(e);
@@ -521,11 +530,55 @@ export default function Patients() {
 
             {/* Column 3: Clinical Trends Visualization */}
             <div className="glass-card detail-card-grid full-width-grid">
-              <div className="card-title-row">
-                <Activity size={18} className="card-icon" style={{ color: 'var(--accent)' }} />
-                <h3>Clinical Assessment Trends</h3>
+              <div className="card-title-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Activity size={18} className="card-icon" style={{ color: 'var(--accent)' }} />
+                  <h3>Clinical Assessment Trends</h3>
+                </div>
+                <div className="trend-toggle-buttons" style={{ display: 'flex', background: 'rgba(0,0,0,0.04)', padding: '4px', borderRadius: '8px', gap: '4px' }}>
+                  <button 
+                    onClick={() => setTrendType('diabetes')}
+                    className={`toggle-btn ${trendType === 'diabetes' ? 'active' : ''}`}
+                    style={{
+                      border: 'none',
+                      background: trendType === 'diabetes' ? 'white' : 'transparent',
+                      color: trendType === 'diabetes' ? 'var(--accent)' : 'var(--text-secondary)',
+                      fontSize: '11px',
+                      fontWeight: '600',
+                      padding: '4px 8px',
+                      borderRadius: '6px',
+                      cursor: 'pointer',
+                      boxShadow: trendType === 'diabetes' ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
+                      transition: 'all 0.2s'
+                    }}
+                  >
+                    Diabetes
+                  </button>
+                  <button 
+                    onClick={() => setTrendType('heart')}
+                    className={`toggle-btn ${trendType === 'heart' ? 'active' : ''}`}
+                    style={{
+                      border: 'none',
+                      background: trendType === 'heart' ? 'white' : 'transparent',
+                      color: trendType === 'heart' ? 'var(--accent)' : 'var(--text-secondary)',
+                      fontSize: '11px',
+                      fontWeight: '600',
+                      padding: '4px 8px',
+                      borderRadius: '6px',
+                      cursor: 'pointer',
+                      boxShadow: trendType === 'heart' ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
+                      transition: 'all 0.2s'
+                    }}
+                  >
+                    Heart Disease
+                  </button>
+                </div>
               </div>
-              <TrendChart predictions={predictions} forecast={forecast} />
+              <TrendChart 
+                predictions={trendType === 'diabetes' ? predictions : heartPredictionsData} 
+                type={trendType} 
+                forecast={trendType === 'diabetes' ? forecast : null} 
+              />
             </div>
 
             {/* Risk Trend Forecast Section (Read-Only for Doctors) */}

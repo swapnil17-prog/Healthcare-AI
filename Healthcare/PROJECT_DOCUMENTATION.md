@@ -160,6 +160,7 @@ Standalone diagnostic scripts executing test suites against a temporary in-memor
 *   [test_security_upgrades.py](./backend/test/test_security_upgrades.py) – Validates brute-force lockout, origin domain checks, and token revoking.
 *   [test_xss_sanitization.py](./backend/test/test_xss_sanitization.py) – Asserts bleach sanitization strips dangerous tags/scripts.
 *   [test_heart_predictions.py](./backend/test/test_heart_predictions.py) – Verifies heart predictions, validator rules, and doctor assignment bounds.
+*   [test_recommendations.py](./backend/test/test_recommendations.py) – Validates rule-based referrals, personalized LLM recommendation generation, and API failure fallbacks.
 
 ---
 
@@ -256,7 +257,10 @@ Here is a summary of the features and engineering work implemented in the projec
 48. **Heart Prediction Access Control Guards:** Configured `/api/heart/predict` and `/api/heart/history` endpoints with patient ownership checks and doctor-patient active appointment assignment verifications to safeguard metrics data.
 49. **Predictions Page Tabbed Interface:** Integrated a navigation shell to toggle between Diabetes and Heart screening forms, featuring an auto-calculating BMI module, radial risk gauges, and cardiologist/general practitioner referral recommendations.
 50. **Patient & Doctor Dashboard Heart Metrics:** Added a "Heart Disease Risk" card to the Patient Dashboard displaying latest metrics. Integrated average risk KPIs, a "Heart Risk Distribution" donut chart, and high-risk critical alerts to the Doctor Dashboard.
-
+51. **Chatbot Heart Disease Risk Integration:** Added a RAG tool (`get_heart_prediction_history`) allowing the clinical chatbot to query and explain patient cardiovascular history, and configured local mock support with key keywords (`"heart"`, `"cardio"`, `"cholesterol"`, `"blood pressure"`, `"bp"`).
+52. **ReportLab PDF Table Wrap Fix:** Refactored tables in `pdf.py` to wrap all cells in ReportLab `Paragraph` structures and stack lifestyle factors via HTML `<br/>` tags to prevent text clipping/column overlap.
+53. **Personalized LLM-Based Recommendations Engine:** Refactored `get_doctor_recommendations` to support optional database session and patient ID context. Queries patient demography, historical screenings, and medical history to generate rich, personalized clinical advice (e.g., tracking BMI or glucose increases over time) via LLM completions, with a robust fallback to rule-based logic.
+54. **Vite Dashboard Roster Pagination Unpacking:** Fixed TypeError crashes inside `DoctorDashboard.jsx` and `Patients.jsx` by unpacking the paginated list envelope responses (`patients`, `appointments`, `predictions`, `reports`) from manual API helpers.
 
 ---
 

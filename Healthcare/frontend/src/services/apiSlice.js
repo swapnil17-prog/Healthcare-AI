@@ -159,8 +159,11 @@ export const apiSlice = createApi({
       invalidatesTags: ['Predictions'],
     }),
     getHeartPredictionHistory: builder.query({
-      query: ({ limit = 10, skip = 0 } = {}) =>
-        `/heart/history?limit=${limit}&skip=${skip}`,
+      query: ({ limit = 10, skip = 0, patientId } = {}) => {
+        let url = `/heart/history?limit=${limit}&skip=${skip}`;
+        if (patientId) url += `&patient_id=${patientId}`;
+        return url;
+      },
       providesTags: ['Predictions'],
     }),
     getHeartStatus: builder.query({

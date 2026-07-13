@@ -29,6 +29,17 @@ class SensitiveDataFilter(logging.Filter):
     ]
     
     def filter(self, record):
+        if record.name == "uvicorn.access" and record.args and len(record.args) == 5:
+            # Uvicorn access formatter expects a 5-tuple in args
+            redacted_args = []
+            for arg in record.args:
+                if isinstance(arg, str):
+                    for pattern, replacement in self.SENSITIVE_PATTERNS:
+                        arg = re.sub(pattern, replacement, arg)
+                redacted_args.append(arg)
+            record.args = tuple(redacted_args)
+            return True
+
         message = str(record.getMessage())
         for pattern, replacement in self.SENSITIVE_PATTERNS:
             message = re.sub(pattern, replacement, message)

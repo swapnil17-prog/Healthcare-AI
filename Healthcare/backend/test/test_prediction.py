@@ -157,8 +157,8 @@ def test_prediction_and_referrals():
     print("\n8. Testing RBAC validation on unassigned patient...")
     # Doctor tries to predict for unassigned patient
     un_pred_res = client.post(f"/api/predictions/{unassigned_patient_id}", json=low_risk_payload, headers=doctor_headers)
-    assert un_pred_res.status_code == 201
-    print("OK Doctor can run predictions on any patient.")
+    assert un_pred_res.status_code == 403
+    print("OK Doctor blocked from running predictions on unassigned patient.")
     
     # Patient tries to view unassigned patient history
     un_hist_res = client.get(f"/api/patients/{unassigned_patient_id}/predictions", headers=patient_headers)

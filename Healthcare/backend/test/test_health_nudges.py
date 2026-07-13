@@ -179,4 +179,3 @@ def test_health_nudges_flow():
         
     finally:
         db.close()
-        Base.metadata.drop_all(bind=engine)

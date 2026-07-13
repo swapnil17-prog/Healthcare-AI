@@ -14,7 +14,7 @@ from typing import List, Optional
 import anthropic
 
 from app.database.database import get_db, SessionLocal
-from app.models.models import ChatMessage, Patient, Prediction, User, MedicalHistory, Appointment, HealthNudge
+from app.models.models import ChatMessage, Patient, Prediction, User, MedicalHistory, Appointment, HealthNudge, HeartPrediction
 from app.auth.dependencies import get_current_user, check_ownership_or_403
 from app.schemas.schemas import PaginatedEnvelope
 from app.core.rate_limiter import limiter
@@ -179,6 +179,27 @@ def get_prediction_history(patient_id: int, db: Session) -> str:
         result.append(f"- Date: {r.created_at.strftime('%Y-%m-%d %H:%M') if r.created_at else 'N/A'}, Model: {r.model_name}, Risk Score: {r.risk_score}%, Result: {r.prediction}, Input Features: {json.dumps(r.input_features)}")
     return "\n".join(result)
 
+def get_heart_prediction_history(patient_id: int, db: Session) -> str:
+    logger.info(f"DEBUG TOOL CALL: get_heart_prediction_history for patient_id={patient_id}")
+    patient = db.query(Patient).filter(Patient.id == patient_id).first()
+    if not patient:
+        return "No heart prediction history records found."
+    records = db.query(HeartPrediction).filter(HeartPrediction.patient_id == patient.user_id).order_by(HeartPrediction.created_at.desc()).all()
+    if not records:
+        return "No heart prediction history records found."
+    result = []
+    for r in records:
+        contribs_str = r.feature_contributions or "{}"
+        result.append(
+            f"- Date: {r.created_at.strftime('%Y-%m-%d %H:%M') if r.created_at else 'N/A'}, "
+            f"Risk Score: {r.risk_score}%, Result: {r.risk_level} Risk, "
+            f"Input Vitals: ap_hi={r.ap_hi}, ap_lo={r.ap_lo}, BMI={r.bmi_calculated:.1f}, "
+            f"Cholesterol: Tier {r.cholesterol}, Glucose: Tier {r.gluc}, "
+            f"Lifestyle: Smoke={r.smoke}, Alco={r.alco}, Active={r.active}, "
+            f"Feature Contributions: {contribs_str}"
+        )
+    return "\n".join(result)
+
 def get_appointments(patient_id: int, db: Session) -> str:
     logger.info(f"DEBUG TOOL CALL: get_appointments for patient_id={patient_id}")
     records = db.query(Appointment).filter(Appointment.patient_id == patient_id).order_by(Appointment.scheduled_at.desc()).all()
@@ -216,6 +237,23 @@ GROQ_TOOLS = [
         "function": {
             "name": "get_prediction_history",
             "description": "Fetch the patient's historical risk predictions and ML models inputs/outputs.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "patient_id": {
+                        "type": "integer",
+                        "description": "The unique patient profile database ID"
+                    }
+                },
+                "required": ["patient_id"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_heart_prediction_history",
+            "description": "Fetch the patient's historical heart disease risk predictions and vitals inputs/outputs.",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -494,6 +532,8 @@ def send_chat_message(
                                 tool_result = get_full_medical_history(p_id, db)
                             elif func_name == "get_prediction_history":
                                 tool_result = get_prediction_history(p_id, db)
+                            elif func_name == "get_heart_prediction_history":
+                                tool_result = get_heart_prediction_history(p_id, db)
                             elif func_name == "get_appointments":
                                 tool_result = get_appointments(p_id, db)
                             else:
@@ -761,6 +801,8 @@ def send_chat_message_stream(
                                         tool_result = get_full_medical_history(p_id, db_session)
                                     elif func_name == "get_prediction_history":
                                         tool_result = get_prediction_history(p_id, db_session)
+                                    elif func_name == "get_heart_prediction_history":
+                                        tool_result = get_heart_prediction_history(p_id, db_session)
                                     elif func_name == "get_appointments":
                                         tool_result = get_appointments(p_id, db_session)
                                     else:
@@ -843,7 +885,7 @@ def generate_mock_response(user_message: str, patient_id: Optional[int], db: Ses
     msg_lower = user_message.lower()
     
     # Determine if query mentions medical metrics or patient record histories
-    medical_keywords = ["history", "prediction", "risk", "glucose", "insulin", "pressure", "bp", "bmi", "medical", "disease", "treatment"]
+    medical_keywords = ["history", "prediction", "risk", "glucose", "insulin", "pressure", "bp", "bmi", "medical", "disease", "treatment", "heart", "cardio", "cholesterol"]
     is_medical = any(kw in msg_lower for kw in medical_keywords)
     
     disclaimer = "*(Please note: I am not a doctor and I cannot provide medical advice. Consult your physician for any clinical decisions.)*\n\n"
@@ -859,6 +901,12 @@ def generate_mock_response(user_message: str, patient_id: Optional[int], db: Ses
             response += f"Here is your medical history:\n{history}"
         else:
             response += "I couldn't find a patient profile associated with your account to fetch your medical history."
+    elif "heart" in msg_lower or "cardio" in msg_lower or "cholesterol" in msg_lower or "blood pressure" in msg_lower or "bp" in msg_lower:
+        if patient_id:
+            heart_preds = get_heart_prediction_history(patient_id, db)
+            response += f"Here is your heart disease prediction history:\n{heart_preds}"
+        else:
+            response += "I couldn't find a patient profile associated with your account to retrieve your heart risk prediction history."
     elif "prediction" in msg_lower or "risk" in msg_lower or "glucose" in msg_lower:
         if patient_id:
             predictions = get_prediction_history(patient_id, db)

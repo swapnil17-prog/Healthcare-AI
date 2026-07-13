@@ -31,7 +31,7 @@ export default function ChatWidget() {
   const loadHistory = async () => {
     try {
       const data = await api.getChatHistory();
-      setMessages(data);
+      setMessages(Array.isArray(data) ? data : data?.items || []);
     } catch (e) {
       console.error('Failed to load chat history', e);
     }
