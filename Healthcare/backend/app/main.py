@@ -96,6 +96,14 @@ try:
 except Exception:
     pass
 
+# Ensure summary column exists in lab_reports table for existing databases
+try:
+    with engine.connect() as conn:
+        conn.execute(text("ALTER TABLE lab_reports ADD COLUMN summary TEXT"))
+        conn.commit()
+except Exception:
+    pass
+
 # Populate null public_ids for all tables
 import uuid
 try:
@@ -280,6 +288,8 @@ def run_daily_nudge_job():
 
 @app.on_event("startup")
 def start_scheduler():
+    # Trigger nudge check evaluation on startup for testing/seeding
+    run_daily_nudge_job()
     if not scheduler.running:
         scheduler.add_job(run_daily_nudge_job, "cron", hour=9, minute=0)
         scheduler.start()

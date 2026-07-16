@@ -495,32 +495,52 @@ export default function Patients() {
                     <p className="empty-text">No diagnostic documents recorded.</p>
                   ) : (
                     reports.map((rep) => (
-                      <div key={rep.id} className="report-archive-item">
-                        <div className="report-item-meta">
-                          <span className="report-title">{rep.report_type}</span>
-                          <span className="report-date">{new Date(rep.upload_date).toLocaleDateString()}</span>
+                      <div key={rep.id} className="report-archive-item" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '8px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center' }}>
+                          <div className="report-item-meta">
+                            <span className="report-title">{rep.report_type}</span>
+                            <span className="report-date">{new Date(rep.upload_date).toLocaleDateString()}</span>
+                          </div>
+                          <a
+                            href="#"
+                            onClick={async (e) => {
+                              e.preventDefault();
+                              try {
+                                const blob = await downloadReportFile(rep.id);
+                                const url = window.URL.createObjectURL(blob);
+                                const a = document.createElement('a');
+                                a.href = url;
+                                a.download = rep.file_path.split('/').pop();
+                                document.body.appendChild(a);
+                                a.click();
+                                a.remove();
+                              } catch (err) {
+                                alert(`Download failed: ${err.message}`);
+                              }
+                            }}
+                            className="report-download-btn-link"
+                          >
+                            Download
+                          </a>
                         </div>
-                        <a
-                          href="#"
-                          onClick={async (e) => {
-                            e.preventDefault();
-                            try {
-                              const blob = await downloadReportFile(rep.id);
-                              const url = window.URL.createObjectURL(blob);
-                              const a = document.createElement('a');
-                              a.href = url;
-                              a.download = rep.file_path.split('/').pop();
-                              document.body.appendChild(a);
-                              a.click();
-                              a.remove();
-                            } catch (err) {
-                              alert(`Download failed: ${err.message}`);
-                            }
-                          }}
-                          className="report-download-btn-link"
-                        >
-                          Download
-                        </a>
+                        {rep.summary && (
+                          <div 
+                            className="report-summary-box" 
+                            style={{ 
+                              width: '100%', 
+                              fontSize: '12px', 
+                              background: 'rgba(91, 107, 248, 0.05)', 
+                              borderLeft: '3px solid var(--accent)', 
+                              padding: '8px 12px', 
+                              borderRadius: '4px', 
+                              color: 'var(--text-secondary)',
+                              marginTop: '2px',
+                              lineHeight: '1.4'
+                            }}
+                          >
+                            <strong>AI Summary:</strong> {rep.summary}
+                          </div>
+                        )}
                       </div>
                     ))
                   )}

@@ -338,26 +338,45 @@ export default function PatientRecords() {
                     key={r.id} 
                     style={{ 
                       display: 'flex', 
-                      justifyContent: 'space-between', 
-                      alignItems: 'center', 
+                      flexDirection: 'column',
+                      alignItems: 'flex-start',
+                      gap: '10px',
                       background: 'var(--bg-primary)', 
                       border: '1px solid var(--border)', 
                       padding: '12px 16px', 
                       borderRadius: '8px' 
                     }}
                   >
-                    <div>
-                      <span style={{ fontSize: '13px', fontWeight: '700', color: 'var(--text-primary)', display: 'block' }}>{r.report_type}</span>
-                      <span style={{ fontSize: '11px', color: 'hsl(var(--text-muted))' }}>Uploaded on {new Date(r.uploaded_at).toLocaleDateString()}</span>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center' }}>
+                      <div>
+                        <span style={{ fontSize: '13px', fontWeight: '700', color: 'var(--text-primary)', display: 'block' }}>{r.report_type}</span>
+                        <span style={{ fontSize: '11px', color: 'hsl(var(--text-muted))' }}>Uploaded on {new Date(r.upload_date || r.uploaded_at).toLocaleDateString()}</span>
+                      </div>
+                      <a 
+                        href={`http://127.0.0.1:8000/api/reports/${r.public_id}/download`} 
+                        className="btn btn-secondary" 
+                        style={{ padding: '6px 12px', fontSize: '11px', textDecoration: 'none' }}
+                        download
+                      >
+                        Download {r.file_path.split('.').pop().toUpperCase()}
+                      </a>
                     </div>
-                    <a 
-                      href={`http://127.0.0.1:8000/api/reports/${r.public_id}/download`} 
-                      className="btn btn-secondary" 
-                      style={{ padding: '6px 12px', fontSize: '11px', textDecoration: 'none' }}
-                      download
-                    >
-                      Download {r.file_path.split('.').pop().toUpperCase()}
-                    </a>
+                    {r.summary && (
+                      <div 
+                        style={{ 
+                          width: '100%', 
+                          fontSize: '12px', 
+                          background: 'rgba(91, 107, 248, 0.05)', 
+                          borderLeft: '3px solid var(--accent)', 
+                          padding: '8px 12px', 
+                          borderRadius: '4px', 
+                          color: 'var(--text-secondary)',
+                          lineHeight: '1.4'
+                        }}
+                      >
+                        <strong>AI Summary:</strong> {r.summary}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>

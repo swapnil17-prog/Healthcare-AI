@@ -1,9 +1,13 @@
 import os
 import uuid
+import logging
+import requests
+from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form, Query
+
+logger = logging.getLogger(__name__)
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
-from typing import List
 from app.database.database import get_db
 from app.models.models import LabReport, Patient, Appointment, User
 from app.schemas.reports import LabReportOut
@@ -115,6 +119,107 @@ def parse_vitals_from_text(text: str) -> dict:
                     break
     return vitals
 
+def generate_fallback_summary(text: str) -> str:
+    # Attempt to extract known vitals to make it somewhat personalized even without API keys
+    vitals = parse_vitals_from_text(text)
+    if not vitals:
+        # Check if it was parsed as CSV
+        try:
+            vitals = parse_csv_content(text)
+        except Exception:
+            pass
+            
+    if not vitals:
+        return "Lab report uploaded successfully. (Plain-language AI summary is unavailable because the Groq API key is missing or failed)."
+        
+    parts = []
+    if "glucose" in vitals:
+        g = vitals["glucose"]
+        if g >= 126:
+            parts.append(f"Glucose is {g} mg/dL (above normal fasting range of 70-99 mg/dL, indicating high risk)")
+        elif g >= 100:
+            parts.append(f"Glucose is {g} mg/dL (borderline pre-diabetic range of 100-125 mg/dL)")
+        else:
+            parts.append(f"Glucose is {g} mg/dL (within normal fasting range)")
+            
+    if "blood_pressure" in vitals:
+        bp = vitals["blood_pressure"]
+        if bp >= 90:
+            parts.append(f"Diastolic Blood Pressure is {bp} mmHg (high, indicating stage 2 hypertension)")
+        elif bp >= 80:
+            parts.append(f"Diastolic Blood Pressure is {bp} mmHg (elevated, indicating stage 1 hypertension)")
+        else:
+            parts.append(f"Diastolic Blood Pressure is {bp} mmHg (within normal range of less than 80 mmHg)")
+            
+    if "bmi" in vitals:
+        bmi = vitals["bmi"]
+        if bmi >= 30:
+            parts.append(f"BMI is {bmi} (classifying as obese, which increases health risk factors)")
+        elif bmi >= 25:
+            parts.append(f"BMI is {bmi} (classifying as overweight)")
+        else:
+            parts.append(f"BMI is {bmi} (within normal weight range of 18.5-24.9)")
+            
+    if "insulin" in vitals:
+        ins = vitals["insulin"]
+        parts.append(f"Insulin level is {ins} mIU/L")
+        
+    if "age" in vitals:
+        parts.append(f"Age listed is {vitals['age']}")
+        
+    summary_text = "Your uploaded report shows: " + ", ".join(parts) + "."
+    if not parts:
+        summary_text = "Lab report uploaded. No standard physiological markers (Glucose, BP, BMI) could be extracted for fallback summary."
+    return summary_text
+
+def generate_report_summary(text: str) -> str:
+    # 1. Get Groq API Key
+    groq_key = os.getenv("GROQ_API_KEY")
+    if not groq_key:
+        return generate_fallback_summary(text)
+    
+    # Import validate_outbound_url here to prevent any circular dependency potential
+    from app.api.chat import validate_outbound_url
+    
+    # Validate outbound Groq API URL (SSRF Protection)
+    if not validate_outbound_url("https://api.groq.com/openai/v1/chat/completions"):
+        return generate_fallback_summary(text)
+        
+    try:
+        model_name = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
+        headers = {
+            "Authorization": f"Bearer {groq_key}",
+            "Content-Type": "application/json"
+        }
+        
+        prompt = (
+            "You are a helpful clinical assistant. Summarize the following lab report text in plain language for the patient. "
+            "Highlight any abnormal values (e.g. glucose, HbA1c, cholesterol, blood pressure, BMI, etc.) and explain what they mean simply. "
+            "Do not give a formal diagnosis. Keep it brief (2-4 sentences max).\n\n"
+            f"Lab Report Text:\n{text[:4000]}"
+        )
+        
+        payload = {
+            "model": model_name,
+            "messages": [
+                {"role": "system", "content": "You are a clinical assistant who provides short, clear summaries of medical lab results in simple terms."},
+                {"role": "user", "content": prompt}
+            ],
+            "temperature": 0.3,
+            "max_tokens": 300
+        }
+        
+        res = requests.post("https://api.groq.com/openai/v1/chat/completions", headers=headers, json=payload, timeout=8.0)
+        if res.status_code == 200:
+            summary = res.json()["choices"][0]["message"]["content"].strip()
+            return summary
+        else:
+            logger.warning(f"Groq API returned status {res.status_code}: {res.text} during report summarization.")
+            return generate_fallback_summary(text)
+    except Exception as e:
+        logger.error(f"Error during report summarization with Groq: {e}")
+        return generate_fallback_summary(text)
+
 router = APIRouter(tags=["reports"])
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -217,21 +322,13 @@ async def upload_lab_report(
     with open(absolute_path, "wb") as out_file:
         out_file.write(content)
         
-    # 3. Save metadata to DB
-    db_report = LabReport(
-        patient_id=patient_id,
-        file_path=relative_path,
-        report_type=report_type
-    )
-    db.add(db_report)
-    db.commit()
-    db.refresh(db_report)
-    
-    # 4. Extract vitals from content to automatically trigger/update risk prediction
+    # 3. Extract text content from file to generate summary and vitals
+    report_text = ""
     vitals = {}
     if file_ext == ".csv":
         try:
             csv_text = content.decode("utf-8")
+            report_text = csv_text
             vitals = parse_csv_content(csv_text)
             if not vitals:
                 vitals = parse_vitals_from_text(csv_text)
@@ -243,9 +340,26 @@ async def upload_lab_report(
             reader = pypdf.PdfReader(io.BytesIO(content))
             for page in reader.pages:
                 pdf_text += page.extract_text() or ""
+            report_text = pdf_text
             vitals = parse_vitals_from_text(pdf_text)
         except Exception:
             pass
+
+    # Generate plain-language summary
+    summary_text = None
+    if report_text:
+        summary_text = generate_report_summary(report_text)
+
+    # 4. Save metadata to DB
+    db_report = LabReport(
+        patient_id=patient_id,
+        file_path=relative_path,
+        report_type=report_type,
+        summary=summary_text
+    )
+    db.add(db_report)
+    db.commit()
+    db.refresh(db_report)
 
     if vitals:
         # Fallback hierarchy for missing vitals

@@ -95,6 +95,10 @@ def test_reports_upload_and_download():
     report_public_id = upload_res.json()["public_id"]
     assert "uploads/reports" in upload_res.json()["file_path"]
     assert upload_res.json()["report_type"] == "Glucose Panel"
+    assert "summary" in upload_res.json()
+    summary = upload_res.json()["summary"]
+    assert "glucose" in summary.lower()
+    assert "110" in summary
     
     # Verify that a prediction is automatically triggered and saved with correct values
     predictions_res = client.get(f"/api/patients/{pat_a_id}/predictions", headers=pat_a_headers)

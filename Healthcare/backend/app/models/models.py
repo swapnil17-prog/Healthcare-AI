@@ -80,6 +80,7 @@ class LabReport(Base):
     file_path = Column(String, nullable=False)
     upload_date = Column(DateTime, default=datetime.datetime.utcnow)
     report_type = Column(String, nullable=False)  # e.g., Blood Test, Urine Test, etc.
+    summary = Column(String, nullable=True)
 
     # Relationships
     patient = relationship("Patient", back_populates="lab_reports")

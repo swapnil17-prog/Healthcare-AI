@@ -261,6 +261,7 @@ Here is a summary of the features and engineering work implemented in the projec
 52. **ReportLab PDF Table Wrap Fix:** Refactored tables in `pdf.py` to wrap all cells in ReportLab `Paragraph` structures and stack lifestyle factors via HTML `<br/>` tags to prevent text clipping/column overlap.
 53. **Personalized LLM-Based Recommendations Engine:** Refactored `get_doctor_recommendations` to support optional database session and patient ID context. Queries patient demography, historical screenings, and medical history to generate rich, personalized clinical advice (e.g., tracking BMI or glucose increases over time) via LLM completions, with a robust fallback to rule-based logic.
 54. **Vite Dashboard Roster Pagination Unpacking:** Fixed TypeError crashes inside `DoctorDashboard.jsx` and `Patients.jsx` by unpacking the paginated list envelope responses (`patients`, `appointments`, `predictions`, `reports`) from manual API helpers.
+55. **Automated Report Summarization:** Text is extracted from uploaded diagnostic files (PDF/CSV) and passed to Groq (`llama-3.3-70b-versatile`) to generate a plain-language summary for patients and doctors, with a robust rule-based local parser fallback if keys are missing. Renders custom-styled, theme-compatible summary alert blocks inside the portals.
 
 ---
 

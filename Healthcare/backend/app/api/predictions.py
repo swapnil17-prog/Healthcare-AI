@@ -181,7 +181,7 @@ def read_patient_predictions(
         "skip": skip
     }
 
-@router.get("/forecast")
+@router.get("/predictions/forecast")
 async def get_risk_forecast(
     months_ahead: int = 3,
     patient_id: Optional[int] = None,
