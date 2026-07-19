@@ -123,3 +123,63 @@ def check_ownership_or_403(
             status_code=403,
             detail="Access denied: insufficient permissions"
         )
+
+from app.services.subscription_service import (
+    check_and_increment_feature_usage,
+    check_doctor_ml_scan_slot,
+    check_doctor_pdf_download_slot,
+    require_doctor_cohort_clustering_access
+)
+
+def require_diabetes_prediction_slot(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+) -> User:
+    if current_user.role == "doctor":
+        check_doctor_ml_scan_slot(current_user, db)
+    else:
+        check_and_increment_feature_usage(current_user, "diabetes_prediction", db)
+    return current_user
+
+def require_heart_prediction_slot(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+) -> User:
+    if current_user.role == "doctor":
+        check_doctor_ml_scan_slot(current_user, db)
+    else:
+        check_and_increment_feature_usage(current_user, "heart_prediction", db)
+    return current_user
+
+def require_chat_message_slot(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+) -> User:
+    check_and_increment_feature_usage(current_user, "chat_message", db)
+    return current_user
+
+def require_pdf_download_access(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+) -> User:
+    if current_user.role == "doctor":
+        check_doctor_pdf_download_slot(current_user, db)
+    else:
+        check_and_increment_feature_usage(current_user, "pdf_download", db)
+    return current_user
+
+def require_forecast_access(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+) -> User:
+    check_and_increment_feature_usage(current_user, "forecast", db)
+    return current_user
+
+def require_doctor_cohort_clustering(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+) -> User:
+    require_doctor_cohort_clustering_access(current_user, db)
+    return current_user
+
+

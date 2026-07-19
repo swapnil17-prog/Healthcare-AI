@@ -17,7 +17,8 @@ import {
   Mail,
   Lock,
   ShieldCheck,
-  Bell
+  Bell,
+  Crown
 } from 'lucide-react';
 import { logout } from './redux/authSlice';
 import { 
@@ -36,6 +37,7 @@ import Patients from './pages/Patients';
 import Predictions from './pages/Predictions';
 import Scheduling from './pages/Scheduling';
 import PatientRecords from './pages/PatientRecords';
+import Pricing from './pages/Pricing';
 
 export default function App() {
   const { isAuthenticated, user } = useSelector((state) => state.auth);
@@ -207,6 +209,16 @@ export default function App() {
               <span>AI Assistant</span>
             </button>
           )}
+
+          {/* Subscription & Pricing Link */}
+          <Link
+            to="/pricing"
+            className={`sidebar-link ${location.pathname === '/pricing' ? 'active' : ''}`}
+            onClick={() => setMobileMenuOpen(false)}
+          >
+            <Crown size={18} />
+            <span>Pricing & Plans</span>
+          </Link>
 
           {/* Profile Settings - triggers Profile Modal */}
           <button
@@ -472,6 +484,7 @@ export default function App() {
                 <Route path="/records" element={<PatientRecords />} />
               )}
               <Route path="/predictions" element={<Predictions />} />
+              <Route path="/pricing" element={<Pricing />} />
               <Route path="*" element={<Navigate to="/dashboard" replace />} />
             </Routes>
           </motion.div>

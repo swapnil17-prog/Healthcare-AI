@@ -34,6 +34,7 @@ def test_pdf_report_generation():
     assert login_res.status_code == 200
     token = login_res.json()["access_token"]
     headers = {"Authorization": f"Bearer {token}"}
+    client.post("/api/subscription/upgrade", json={"plan_code": "Pro"}, headers=headers)
     
     # Get Patient ID
     patients_list = client.get("/api/patients", headers=headers).json()["items"]

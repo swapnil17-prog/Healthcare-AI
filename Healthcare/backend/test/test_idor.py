@@ -36,6 +36,7 @@ def test_idor_and_public_id():
             name="Patient A", 
             email="idor_pat_a@test.com", 
             role="patient", 
+            subscription_tier="Pro",
             password_hash=get_password_hash("password123")
         )
         db.add(pat_a_user)
@@ -50,6 +51,7 @@ def test_idor_and_public_id():
             name="Patient B", 
             email="idor_pat_b@test.com", 
             role="patient", 
+            subscription_tier="Pro",
             password_hash=get_password_hash("password123")
         )
         db.add(pat_b_user)

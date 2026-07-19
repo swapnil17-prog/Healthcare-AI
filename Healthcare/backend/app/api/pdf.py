@@ -11,7 +11,7 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from app.database.database import get_db
 from app.models.models import Patient, User, MedicalHistory, Prediction, Appointment, HeartPrediction
 from app.services.recommendation import get_doctor_recommendations
-from app.auth.dependencies import get_current_user
+from app.auth.dependencies import get_current_user, require_pdf_download_access
 
 router = APIRouter(tags=["pdf"])
 
@@ -59,6 +59,7 @@ def draw_header_footer(canvas, doc):
 @router.get("/patients/{patient_id}/pdf-report")
 def generate_pdf_report(
     patient_id: int,
+    slot_user: User = Depends(require_pdf_download_access),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):

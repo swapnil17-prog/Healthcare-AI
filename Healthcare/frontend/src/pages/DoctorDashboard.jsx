@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { 
   Users, 
   AlertTriangle, 
@@ -10,7 +10,8 @@ import {
   FileText,
   Activity,
   Award,
-  Heart
+  Heart,
+  Crown
 } from 'lucide-react';
 import { 
   ResponsiveContainer, 
@@ -28,9 +29,11 @@ import {
 } from 'recharts';
 import { motion } from 'framer-motion';
 import { api } from '../services/api';
+import { useGetCurrentSubscriptionQuery } from '../services/apiSlice';
 import './DoctorDashboard.css';
  
 export default function DoctorDashboard() {
+  const { data: currentSub } = useGetCurrentSubscriptionQuery();
   const [patients, setPatients] = useState([]);
   const [predictionsMap, setPredictionsMap] = useState({});
   const [heartPredictionsMap, setHeartPredictionsMap] = useState({});
@@ -311,6 +314,30 @@ export default function DoctorDashboard() {
 
       {/* KPI Panel Cards */}
       <div className="doctor-kpi-grid">
+        {/* KPI 0: Subscription Tier & Usage Meters */}
+        <div className="white-kpi-card">
+          <div className="kpi-icon-wrapper blue-light" style={{ backgroundColor: 'rgba(124, 58, 237, 0.1)' }}>
+            <Crown className="kpi-icon" size={24} style={{ color: '#7c3aed' }} />
+          </div>
+          <div className="kpi-card-info" style={{ width: '100%' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span className="kpi-label" style={{ fontWeight: 700 }}>👑 Doctor Tier</span>
+              <Link to="/pricing" style={{ fontSize: '11px', fontWeight: 600, color: '#7c3aed', textDecoration: 'none' }}>Upgrade</Link>
+            </div>
+            <h3 className="kpi-value" style={{ fontSize: '16px', marginTop: '2px', color: '#7c3aed' }}>
+              {currentSub?.subscription_tier === 'Doc_Clinical_Plus' ? 'Clinical Plus' : currentSub?.subscription_tier === 'Doc_Professional' ? 'Professional' : 'Free Trial Doctor'}
+            </h3>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', marginTop: '4px', fontSize: '11px', color: 'var(--text-secondary)' }}>
+              <span>
+                Patients: <strong>{currentSub?.usage_stats?.assigned_patients_used ?? totalPatients}</strong> / {currentSub?.usage_stats?.assigned_patients_limit === -1 ? '∞' : (currentSub?.usage_stats?.assigned_patients_limit ?? 5)}
+              </span>
+              <span>
+                ML Scans: <strong>{currentSub?.usage_stats?.doctor_ml_scans_used ?? 0}</strong> / {currentSub?.usage_stats?.doctor_ml_scans_limit === -1 ? '∞' : (currentSub?.usage_stats?.doctor_ml_scans_limit ?? 10)}
+              </span>
+            </div>
+          </div>
+        </div>
+
         {/* KPI 1: Total Patients */}
         <div className="white-kpi-card">
           <div className="kpi-icon-wrapper blue-light">

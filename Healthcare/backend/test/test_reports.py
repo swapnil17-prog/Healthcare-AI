@@ -54,6 +54,8 @@ def test_reports_upload_and_download():
     doctor_headers = {"Authorization": f"Bearer {doctor_token}"}
     pat_a_headers = {"Authorization": f"Bearer {pat_a_token}"}
     pat_b_headers = {"Authorization": f"Bearer {pat_b_token}"}
+    client.post("/api/subscription/upgrade", json={"plan_code": "Pro"}, headers=pat_a_headers)
+    client.post("/api/subscription/upgrade", json={"plan_code": "Pro"}, headers=pat_b_headers)
     
     print("OK Logins complete.")
 

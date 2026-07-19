@@ -6,7 +6,7 @@ import json
 from app.database.database import get_db
 from app.models.models import HeartPrediction, Patient, Appointment, User
 from app.schemas.heart_predictions import HeartPredictionCreate, HeartPredictionResponse, HeartPredictionHistory
-from app.auth.dependencies import get_current_user
+from app.auth.dependencies import get_current_user, require_heart_prediction_slot
 from app.ml.ml_service import heart_ml_service
 
 router = APIRouter(prefix="/heart", tags=["heart"])
@@ -19,6 +19,7 @@ def get_heart_status():
 async def predict_heart_disease(
     data: HeartPredictionCreate,
     patient_id: Optional[int] = Query(None),
+    slot_user: User = Depends(require_heart_prediction_slot),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):

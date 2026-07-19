@@ -10,7 +10,8 @@ import {
   Heart, 
   Scale, 
   Calendar,
-  Sparkles
+  Sparkles,
+  Crown
 } from 'lucide-react';
 import { 
   useGetPatientsQuery, 
@@ -23,6 +24,7 @@ import {
   useMarkHealthNudgeReadMutation,
   useDismissHealthNudgeMutation,
   useGetHeartPredictionHistoryQuery,
+  useGetCurrentSubscriptionQuery,
   downloadPdfReport
 } from '../services/apiSlice';
 import { motion } from 'framer-motion';
@@ -42,6 +44,7 @@ export default function PatientDashboard() {
   const { data: appointments = [], isLoading: isApptsLoading } = useGetAppointmentsQuery(undefined, { skip: !patient });
   const { data: doctors = [], isLoading: isDocsLoading } = useGetDoctorsQuery(undefined, { skip: !patient });
   const { data: heartHistoryData, isLoading: isHeartLoading } = useGetHeartPredictionHistoryQuery({ limit: 10 }, { skip: !patient });
+  const { data: currentSub } = useGetCurrentSubscriptionQuery(undefined, { skip: !patient });
 
   const [updatePatient] = useUpdatePatientMutation();
   const [pdfLoading, setPdfLoading] = useState(false);
@@ -223,7 +226,29 @@ export default function PatientDashboard() {
           </div>
         </div>
 
-        {/* Card 1.5: Heart Disease Risk Score */}
+        {/* Card 5: Subscription & Usage Meters */}
+        <div className="white-stat-card">
+          <div className="stat-card-icon-wrapper accent-light" style={{ backgroundColor: 'rgba(2, 132, 199, 0.1)' }}>
+            <Crown className="stat-card-icon" size={24} style={{ color: '#0284c7' }} />
+          </div>
+          <div className="stat-card-info" style={{ width: '100%' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span className="stat-card-label">👑 Subscription Tier</span>
+              <Link to="/pricing" style={{ fontSize: '11px', fontWeight: 600, color: '#0284c7', textDecoration: 'none' }}>Upgrade</Link>
+            </div>
+            <h3 className="stat-card-value" style={{ fontSize: '18px', marginTop: '2px' }}>
+              {currentSub?.subscription_tier || 'Free'} Plan
+            </h3>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '6px', fontSize: '11px', color: 'var(--text-secondary)' }}>
+              <span>
+                Predictions: <strong>{currentSub?.usage_stats?.diabetes_predictions_used ?? 0}</strong> / {currentSub?.usage_stats?.diabetes_predictions_limit === -1 ? '∞' : (currentSub?.usage_stats?.diabetes_predictions_limit ?? 3)} used
+              </span>
+              <span>
+                AI Chat: <strong>{currentSub?.usage_stats?.chat_messages_used ?? 0}</strong> / {currentSub?.usage_stats?.chat_messages_limit === -1 ? '∞' : (currentSub?.usage_stats?.chat_messages_limit ?? 10)} used
+              </span>
+            </div>
+          </div>
+        </div>
         <div className="white-stat-card">
           <div className="stat-card-icon-wrapper accent-light" style={{ backgroundColor: 'rgba(239, 68, 68, 0.1)' }}>
             <Heart className="stat-card-icon" size={24} style={{ color: '#ef4444' }} />

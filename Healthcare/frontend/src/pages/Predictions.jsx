@@ -7,8 +7,10 @@ import {
   useUploadReportMutation, 
   useLazyGetPredictionsQuery,
   usePredictHeartDiseaseMutation,
-  useGetHeartStatusQuery 
+  useGetHeartStatusQuery,
+  useGetCurrentSubscriptionQuery
 } from '../services/apiSlice';
+import UpgradeModal from '../components/UpgradeModal';
 import { motion } from 'framer-motion';
 import './Predictions.css';
 
@@ -21,6 +23,10 @@ export default function Predictions() {
   const [getPredictions] = useLazyGetPredictionsQuery();
   const [predictHeartDisease, { isLoading: heartLoading }] = usePredictHeartDiseaseMutation();
   const { data: heartStatus } = useGetHeartStatusQuery();
+  const { data: currentSub } = useGetCurrentSubscriptionQuery();
+
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [upgradeLimitMsg, setUpgradeLimitMsg] = useState('');
 
   const [selectedPatientId, setSelectedPatientId] = useState('');
   
@@ -149,7 +155,11 @@ export default function Predictions() {
       const predictionResponse = await runPrediction({ patientId: selectedPatientId, data: payload }).unwrap();
       setResult(predictionResponse);
     } catch (err) {
-      setError(err.data?.detail || err.message || 'ML Inference failed. Please check inputs.');
+      if (err.status === 429 || err.status === 402 || err.data?.detail?.error) {
+        setUpgradeLimitMsg(err.data?.detail?.message || 'Prediction limit reached.');
+        setShowUpgradeModal(true);
+      }
+      setError(typeof err.data?.detail === 'string' ? err.data.detail : err.data?.detail?.message || err.message || 'ML Inference failed. Please check inputs.');
     }
   };
 
@@ -185,13 +195,14 @@ export default function Predictions() {
     };
 
     try {
-      const heartResponse = await predictHeartDisease(payload).unwrap();
-      setResult({
-        ...heartResponse,
-        type: 'heart'
-      });
+      const predictionResponse = await predictHeartDisease({ data: payload, patient_id: parseInt(selectedPatientId) }).unwrap();
+      setResult(predictionResponse);
     } catch (err) {
-      setError(err.data?.detail || err.message || 'Heart Risk Assessment failed. Please check inputs.');
+      if (err.status === 429 || err.status === 402 || err.data?.detail?.error) {
+        setUpgradeLimitMsg(err.data?.detail?.message || 'Heart Disease Screening is locked on Free plan.');
+        setShowUpgradeModal(true);
+      }
+      setError(typeof err.data?.detail === 'string' ? err.data.detail : err.data?.detail?.message || err.message || 'Heart prediction failed. Please check inputs.');
     }
   };
 
@@ -897,6 +908,11 @@ export default function Predictions() {
           )}
         </div>
       </div>
+      <UpgradeModal 
+        isOpen={showUpgradeModal} 
+        onClose={() => setShowUpgradeModal(false)} 
+        limitMessage={upgradeLimitMsg} 
+      />
     </div>
   );
 }

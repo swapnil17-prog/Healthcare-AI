@@ -1,4 +1,4 @@
-const BASE_URL = 'http://127.0.0.1:8000/api';
+export const BASE_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api';
 
 let isRefreshing = false;
 let refreshSubscribers = [];
@@ -15,18 +15,18 @@ const onRefreshed = (token) => {
 const customFetch = async (url, options = {}) => {
   // Always include credentials to support HTTP-only cookies (refresh token)
   options.credentials = 'include';
-  
+
   if (!options.headers) {
     options.headers = {};
   }
-  
+
   const token = localStorage.getItem('token');
   if (token && !options.headers['Authorization']) {
     options.headers['Authorization'] = `Bearer ${token}`;
   }
-  
+
   let res = await fetch(url, options);
-  
+
   // If unauthorized and not logging in/registering, attempt to refresh the session
   if (res.status === 401 && !url.includes('/auth/login') && !url.includes('/auth/register') && !url.includes('/auth/refresh')) {
     if (!isRefreshing) {
@@ -37,7 +37,7 @@ const customFetch = async (url, options = {}) => {
           credentials: 'include',
           headers: { 'Content-Type': 'application/json' }
         });
-        
+
         if (refreshRes.ok) {
           const data = await refreshRes.json();
           localStorage.setItem('token', data.access_token);
@@ -56,7 +56,7 @@ const customFetch = async (url, options = {}) => {
         throw err;
       }
     }
-    
+
     // Wait for the token refresh to complete and retry the request
     const retryOriginalRequest = new Promise((resolve) => {
       subscribeTokenRefresh((newToken) => {
@@ -64,10 +64,10 @@ const customFetch = async (url, options = {}) => {
         resolve(fetch(url, options));
       });
     });
-    
+
     res = await retryOriginalRequest;
   }
-  
+
   return res;
 };
 
@@ -328,4 +328,37 @@ export const api = {
     }
     return res.json();
   },
+
+  // --- SUBSCRIPTION ---
+  getSubscriptionPlans: async () => {
+    const res = await customFetch(`${BASE_URL}/subscription/plans`, { method: 'GET' });
+    if (!res.ok) throw new Error('Failed to fetch subscription plans');
+    return res.json();
+  },
+
+  getCurrentSubscription: async () => {
+    const res = await customFetch(`${BASE_URL}/subscription/current`, { method: 'GET' });
+    if (!res.ok) throw new Error('Failed to fetch current subscription');
+    return res.json();
+  },
+
+  upgradeSubscription: async (planCode, paymentMethod = 'mock', paymentId = null) => {
+    const res = await customFetch(`${BASE_URL}/subscription/upgrade`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ plan_code: planCode, payment_method: paymentMethod, payment_id: paymentId }),
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.detail || 'Failed to upgrade subscription');
+    }
+    return res.json();
+  },
+
+  cancelSubscription: async () => {
+    const res = await customFetch(`${BASE_URL}/subscription/cancel`, { method: 'POST' });
+    if (!res.ok) throw new Error('Failed to cancel subscription');
+    return res.json();
+  },
 };
+

@@ -1,8 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from app.database.database import get_db
-from app.models.models import User, Patient, Appointment, LabReport, Prediction
+from app.models.models import User, Patient, Appointment, LabReport, Prediction, UserSubscription
 from app.schemas.schemas import (AdminUserCreate, AdminUserResponse, AdminStatsResponse, AdminAssignRequest, PaginatedEnvelope)
+from app.schemas.subscription import UpgradeRequest
+from app.services.subscription_service import process_subscription_upgrade, process_subscription_cancel
 from app.auth.dependencies import require_role, get_current_user
 from app.auth.security import get_password_hash
 from datetime import datetime, time, timedelta
@@ -311,3 +313,106 @@ def assign_patient(
         
     db.commit()
     return {"status": "success", "message": "Patient assigned to doctor successfully"}
+
+@router.get("/subscriptions")
+def get_admin_subscriptions(
+    role: Optional[str] = None,
+    search: Optional[str] = None,
+    limit: int = Query(default=50, ge=1, le=100),
+    skip: int = Query(default=0, ge=0),
+    db: Session = Depends(get_db)
+):
+    """Fetches all users and their active subscription status for Admin management."""
+    query = db.query(User)
+    if role and role.strip():
+        query = query.filter(User.role == role.strip())
+    if search and search.strip():
+        s = f"%{search.strip()}%"
+        query = query.filter((User.name.ilike(s)) | (User.email.ilike(s)))
+
+    total = query.count()
+    users = query.offset(skip).limit(limit).all()
+
+    items = []
+    for u in users:
+        sub = db.query(UserSubscription).filter(
+            UserSubscription.user_id == u.id,
+            UserSubscription.status == "active"
+        ).order_by(UserSubscription.start_date.desc(), UserSubscription.id.desc()).first()
+
+        default_tier = "Doc_Free" if u.role == "doctor" else "Free"
+        items.append({
+            "id": u.id,
+            "name": u.name,
+            "email": u.email,
+            "role": u.role,
+            "subscription_tier": u.subscription_tier or default_tier,
+            "status": sub.status if sub else "active",
+            "start_date": sub.start_date.isoformat() if (sub and sub.start_date) else (u.created_at.isoformat() if u.created_at else None),
+            "end_date": sub.end_date.isoformat() if (sub and sub.end_date) else None,
+            "payment_method": sub.payment_method if sub else None
+        })
+
+    return {
+        "items": items,
+        "total": total,
+        "limit": limit,
+        "skip": skip
+    }
+
+@router.post("/subscriptions/{user_id}/upgrade")
+def admin_upgrade_user_subscription(
+    user_id: int,
+    req: UpgradeRequest,
+    db: Session = Depends(get_db)
+):
+    """Allows Admin to manually upgrade/change subscription tier for any user."""
+    target_user = db.query(User).filter(User.id == user_id).first()
+    if not target_user:
+        raise HTTPException(status_code=404, detail="User not found.")
+
+    valid_codes = ["Free", "Pro", "Clinical", "Doc_Free", "Doc_Professional", "Doc_Clinical_Plus"]
+    if req.plan_code not in valid_codes:
+        raise HTTPException(status_code=400, detail="Invalid subscription plan code.")
+
+    target_code = req.plan_code
+    if target_user.role == "doctor":
+        if target_code == "Pro":
+            target_code = "Doc_Professional"
+        elif target_code == "Clinical":
+            target_code = "Doc_Clinical_Plus"
+        elif target_code == "Free":
+            target_code = "Doc_Free"
+
+    user, sub_rec = process_subscription_upgrade(
+        user=target_user,
+        plan_code=target_code,
+        payment_method=req.payment_method or "admin_override",
+        payment_id=req.payment_id or f"admin_tx_{target_code.lower()}_{user_id}",
+        db=db
+    )
+
+    return {
+        "status": "success",
+        "message": f"Successfully updated subscription for {user.name} to {target_code}.",
+        "user_id": user.id,
+        "subscription_tier": user.subscription_tier
+    }
+
+@router.post("/subscriptions/{user_id}/cancel")
+def admin_cancel_user_subscription(
+    user_id: int,
+    db: Session = Depends(get_db)
+):
+    """Allows Admin to manually cancel active subscription for any user."""
+    target_user = db.query(User).filter(User.id == user_id).first()
+    if not target_user:
+        raise HTTPException(status_code=404, detail="User not found.")
+
+    user = process_subscription_cancel(user=target_user, db=db)
+    return {
+        "status": "success",
+        "message": f"Successfully cancelled subscription for {user.name}.",
+        "user_id": user.id,
+        "subscription_tier": user.subscription_tier
+    }

@@ -12,7 +12,7 @@ from app.database.database import get_db
 from app.models.models import LabReport, Patient, Appointment, User
 from app.schemas.reports import LabReportOut
 from app.schemas.schemas import PaginatedEnvelope
-from app.auth.dependencies import get_current_user, check_ownership_or_403
+from app.auth.dependencies import get_current_user, check_ownership_or_403, require_pdf_download_access
 from app.models.models import Prediction
 from app.ml.ml_service import ml_service
 from app.services.recommendation import get_doctor_recommendations
@@ -479,6 +479,7 @@ def read_patient_reports(
 @router.get("/reports/{public_id}/download")
 def download_lab_report(
     public_id: str,
+    slot_user: User = Depends(require_pdf_download_access),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):

@@ -7,7 +7,7 @@ from app.schemas.predictions import PredictionRequest, PredictionOut
 from app.schemas.schemas import PaginatedEnvelope
 from app.ml.ml_service import ml_service
 from app.services.recommendation import get_doctor_recommendations
-from app.auth.dependencies import get_current_user, check_ownership_or_403
+from app.auth.dependencies import get_current_user, check_ownership_or_403, require_diabetes_prediction_slot, require_forecast_access
 from app.core.rate_limiter import limiter
 
 router = APIRouter(tags=["predictions"])
@@ -26,6 +26,7 @@ def run_prediction(
     patient_id: int,
     req: PredictionRequest,
     request: Request,
+    slot_user: User = Depends(require_diabetes_prediction_slot),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -185,6 +186,7 @@ def read_patient_predictions(
 async def get_risk_forecast(
     months_ahead: int = 3,
     patient_id: Optional[int] = None,
+    slot_user: User = Depends(require_forecast_access),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):

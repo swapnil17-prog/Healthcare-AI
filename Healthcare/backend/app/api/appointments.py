@@ -7,6 +7,8 @@ from app.schemas.appointments import AppointmentCreate, AppointmentOut, Appointm
 from app.schemas.schemas import PaginatedEnvelope
 from app.auth.dependencies import get_current_user, check_ownership_or_403
 
+from app.services.subscription_service import check_doctor_patient_assignment_slot
+
 router = APIRouter(prefix="/appointments", tags=["appointments"])
 
 @router.post("", response_model=AppointmentOut, status_code=status.HTTP_201_CREATED)
@@ -33,7 +35,6 @@ def create_appointment(
             )
         
     # Set doctor_id: If doctor, enforce their own ID; if admin, allow any; if patient, allow scheduling.
-    # To keep it flexible for testing, we let admin specify the doctor_id, and default others or validate.
     doctor_id = appt_in.doctor_id
     if current_user.role == "doctor":
         doctor_id = current_user.id
@@ -45,6 +46,13 @@ def create_appointment(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Doctor not found or invalid role"
         )
+
+    # Check doctor assigned patient subscription slot
+    existing_assigned_patient_ids = [
+        r[0] for r in db.query(Appointment.patient_id).filter(Appointment.doctor_id == doctor.id).distinct().all()
+    ]
+    if appt_in.patient_id not in existing_assigned_patient_ids:
+        check_doctor_patient_assignment_slot(doctor, len(existing_assigned_patient_ids), db)
         
     db_appointment = Appointment(
         patient_id=appt_in.patient_id,

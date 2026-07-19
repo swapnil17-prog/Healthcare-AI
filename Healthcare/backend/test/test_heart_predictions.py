@@ -44,10 +44,11 @@ def test_heart_predictions_and_idor():
     patient_token = client.post("/api/auth/login", json={"email": patient_data["email"], "password": patient_data["password"]}).json()["access_token"]
     unassigned_token = client.post("/api/auth/login", json={"email": unassigned_patient_data["email"], "password": unassigned_patient_data["password"]}).json()["access_token"]
     
-    admin_headers = {"Authorization": f"Bearer {admin_token}"}
-    doctor_headers = {"Authorization": f"Bearer {doctor_token}"}
     patient_headers = {"Authorization": f"Bearer {patient_token}"}
+    doctor_headers = {"Authorization": f"Bearer {doctor_token}"}
+    admin_headers = {"Authorization": f"Bearer {admin_token}"}
     unassigned_headers = {"Authorization": f"Bearer {unassigned_token}"}
+    client.post("/api/subscription/upgrade", json={"plan_code": "Pro"}, headers=patient_headers)
     
     print("OK Logins complete.")
 

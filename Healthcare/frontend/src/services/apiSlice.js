@@ -1,6 +1,6 @@
 import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
 
-const BASE_URL = 'http://127.0.0.1:8000/api';
+export const BASE_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api';
 
 // Custom base query using fetchBaseQuery
 const baseQuery = fetchBaseQuery({
@@ -18,7 +18,7 @@ const baseQuery = fetchBaseQuery({
 // Wrapper to handle automatic token refresh (Reauth) on 401 Unauthorized
 const baseQueryWithReauth = async (args, api, extraOptions) => {
   let result = await baseQuery(args, api, extraOptions);
-  
+
   if (result.error && result.error.status === 401) {
     const url = typeof args === 'string' ? args : args.url;
     // Don't loop on login/register/refresh endpoints
@@ -27,7 +27,7 @@ const baseQueryWithReauth = async (args, api, extraOptions) => {
         url: '/auth/refresh',
         method: 'POST',
       }, api, extraOptions);
-      
+
       if (refreshResult.data) {
         const newToken = refreshResult.data.access_token;
         localStorage.setItem('token', newToken);
@@ -71,7 +71,7 @@ export const apiSlice = createApi({
         method: 'POST',
       }),
     }),
-    
+
     getPatients: builder.query({
       query: () => '/patients',
       transformResponse: (response) => response?.items || response,
@@ -93,7 +93,7 @@ export const apiSlice = createApi({
       }),
       invalidatesTags: (result, error, { id }) => ['Patients', { type: 'Patients', id }],
     }),
-    
+
     getMedicalHistory: builder.query({
       query: (patientId) => `/patients/${patientId}/medical-history`,
       transformResponse: (response) => response?.items || response,
@@ -114,7 +114,7 @@ export const apiSlice = createApi({
       }),
       invalidatesTags: ['MedicalHistory'],
     }),
-    
+
     getAppointments: builder.query({
       query: () => '/appointments',
       transformResponse: (response) => response?.items || response,
@@ -136,7 +136,7 @@ export const apiSlice = createApi({
       }),
       invalidatesTags: ['Appointments'],
     }),
-    
+
     getPredictions: builder.query({
       query: (patientId) => `/patients/${patientId}/predictions`,
       transformResponse: (response) => response?.items || response,
@@ -177,7 +177,7 @@ export const apiSlice = createApi({
       },
       providesTags: ['Predictions'],
     }),
-    
+
     getReports: builder.query({
       query: (patientId) => `/patients/${patientId}/reports`,
       transformResponse: (response) => response?.items || response,
@@ -221,7 +221,7 @@ export const apiSlice = createApi({
       }),
       invalidatesTags: ['Reports'],
     }),
-    
+
     getChatHistory: builder.query({
       query: () => '/chat/history',
       transformResponse: (response) => response?.items || response,
@@ -284,6 +284,51 @@ export const apiSlice = createApi({
         body: data,
       }),
       invalidatesTags: ['Assignments', 'AdminUsers'],
+    }),
+    getSubscriptionPlans: builder.query({
+      query: () => '/subscription/plans',
+      providesTags: ['Subscription'],
+    }),
+    getCurrentSubscription: builder.query({
+      query: () => '/subscription/current',
+      providesTags: ['Subscription'],
+    }),
+    upgradeSubscription: builder.mutation({
+      query: (data) => ({
+        url: '/subscription/upgrade',
+        method: 'POST',
+        body: data,
+      }),
+      invalidatesTags: ['Subscription', 'User'],
+    }),
+    cancelSubscription: builder.mutation({
+      query: () => ({
+        url: '/subscription/cancel',
+        method: 'POST',
+      }),
+      invalidatesTags: ['Subscription', 'User'],
+    }),
+    getAdminSubscriptions: builder.query({
+      query: (params = {}) => {
+        const queryParams = new URLSearchParams(params).toString();
+        return `/admin/subscriptions${queryParams ? `?${queryParams}` : ''}`;
+      },
+      providesTags: ['Subscription', 'AdminUsers'],
+    }),
+    adminUpgradeSubscription: builder.mutation({
+      query: ({ userId, plan_code, payment_method }) => ({
+        url: `/admin/subscriptions/${userId}/upgrade`,
+        method: 'POST',
+        body: { plan_code, payment_method },
+      }),
+      invalidatesTags: ['Subscription', 'AdminUsers', 'User'],
+    }),
+    adminCancelSubscription: builder.mutation({
+      query: (userId) => ({
+        url: `/admin/subscriptions/${userId}/cancel`,
+        method: 'POST',
+      }),
+      invalidatesTags: ['Subscription', 'AdminUsers', 'User'],
     }),
   }),
 });
@@ -350,4 +395,11 @@ export const {
   usePredictHeartDiseaseMutation,
   useGetHeartPredictionHistoryQuery,
   useGetHeartStatusQuery,
+  useGetSubscriptionPlansQuery,
+  useGetCurrentSubscriptionQuery,
+  useUpgradeSubscriptionMutation,
+  useCancelSubscriptionMutation,
+  useGetAdminSubscriptionsQuery,
+  useAdminUpgradeSubscriptionMutation,
+  useAdminCancelSubscriptionMutation,
 } = apiSlice;

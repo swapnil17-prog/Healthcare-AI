@@ -19,7 +19,8 @@ from app.core.rate_limiter import limiter
 from datetime import datetime
 from app.database.database import engine, SessionLocal
 from app.models.models import Base, RevokedToken, HealthNudge
-from app.api import auth, patients, appointments, medical_history, predictions, reports, chat, pdf, admin, health_nudges, heart_predictions
+from app.api import auth, patients, appointments, medical_history, predictions, reports, chat, pdf, admin, health_nudges, heart_predictions, subscription
+from app.services.subscription_service import seed_subscription_plans
 
 # Initialize Database tables
 Base.metadata.create_all(bind=engine)
@@ -60,6 +61,14 @@ except Exception:
 try:
     with engine.connect() as conn:
         conn.execute(text("ALTER TABLE users ADD COLUMN locked_until DATETIME"))
+        conn.commit()
+except Exception:
+    pass
+
+# Ensure subscription_tier column exists in users table for existing databases
+try:
+    with engine.connect() as conn:
+        conn.execute(text("ALTER TABLE users ADD COLUMN subscription_tier TEXT DEFAULT 'Free'"))
         conn.commit()
 except Exception:
     pass
@@ -144,14 +153,71 @@ async def global_exception_handler(request: Request, exc: Exception):
         content={"detail": "An internal error occurred. Please try again later."}
     )
 
+def migrate_db_columns():
+    """Dynamically adds missing columns to existing SQLite database tables."""
+    from sqlalchemy import inspect, text
+    try:
+        inspector = inspect(engine)
+        tables = inspector.get_table_names()
+
+        if "users" in tables:
+            columns = [c["name"] for c in inspector.get_columns("users")]
+            if "subscription_tier" not in columns:
+                with engine.connect() as conn:
+                    conn.execute(text("ALTER TABLE users ADD COLUMN subscription_tier VARCHAR DEFAULT 'Free'"))
+                    conn.commit()
+
+        if "subscription_plans" in tables:
+            columns = [c["name"] for c in inspector.get_columns("subscription_plans")]
+            plan_cols = [
+                ("target_role", "VARCHAR DEFAULT 'patient'"),
+                ("max_assigned_patients", "INTEGER DEFAULT 5"),
+                ("doctor_ml_scans_limit", "INTEGER DEFAULT 10"),
+                ("doctor_pdf_downloads_limit", "INTEGER DEFAULT 5"),
+                ("cohort_clustering_allowed", "BOOLEAN DEFAULT 0"),
+                ("predictive_alerts_allowed", "BOOLEAN DEFAULT 0"),
+                ("custom_date_range_analytics", "BOOLEAN DEFAULT 0"),
+                ("upload_lab_reports_allowed", "BOOLEAN DEFAULT 1"),
+                ("api_access_allowed", "BOOLEAN DEFAULT 0")
+            ]
+            with engine.connect() as conn:
+                for col_name, col_def in plan_cols:
+                    if col_name not in columns:
+                        try:
+                            conn.execute(text(f"ALTER TABLE subscription_plans ADD COLUMN {col_name} {col_def}"))
+                            conn.commit()
+                        except Exception:
+                            pass
+
+        if "usage_tracking" in tables:
+            columns = [c["name"] for c in inspector.get_columns("usage_tracking")]
+            usage_cols = [
+                ("assigned_patients_count", "INTEGER DEFAULT 0"),
+                ("doctor_ml_scans_count", "INTEGER DEFAULT 0"),
+                ("doctor_pdf_downloads_count", "INTEGER DEFAULT 0")
+            ]
+            with engine.connect() as conn:
+                for col_name, col_def in usage_cols:
+                    if col_name not in columns:
+                        try:
+                            conn.execute(text(f"ALTER TABLE usage_tracking ADD COLUMN {col_name} {col_def}"))
+                            conn.commit()
+                        except Exception:
+                            pass
+    except Exception as e:
+        logger.warning(f"Auto-migration notice: {e}")
+
 @app.on_event("startup")
 async def cleanup_revoked_tokens():
+    Base.metadata.create_all(bind=engine)
+    migrate_db_columns()
     db = SessionLocal()
     try:
         db.query(RevokedToken)\
           .filter(RevokedToken.expires_at < datetime.utcnow())\
           .delete()
         db.commit()
+        seed_subscription_plans(db)
     finally:
         db.close()
 
@@ -270,6 +336,7 @@ app.include_router(pdf.router, prefix="/api")
 app.include_router(admin.router, prefix="/api")
 app.include_router(health_nudges.router, prefix="/api")
 app.include_router(heart_predictions.router, prefix="/api")
+app.include_router(subscription.router, prefix="/api")
 
 # APScheduler Background Task Setup
 from apscheduler.schedulers.background import BackgroundScheduler

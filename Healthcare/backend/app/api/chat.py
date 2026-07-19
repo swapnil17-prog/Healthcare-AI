@@ -15,7 +15,7 @@ import anthropic
 
 from app.database.database import get_db, SessionLocal
 from app.models.models import ChatMessage, Patient, Prediction, User, MedicalHistory, Appointment, HealthNudge, HeartPrediction
-from app.auth.dependencies import get_current_user, check_ownership_or_403
+from app.auth.dependencies import get_current_user, check_ownership_or_403, require_chat_message_slot
 from app.schemas.schemas import PaginatedEnvelope
 from app.core.rate_limiter import limiter
 from app.services.vector_store import vector_store
@@ -331,6 +331,7 @@ def clear_chat_history(
 def send_chat_message(
     chat_in: ChatMessageIn,
     request: Request,
+    slot_user: User = Depends(require_chat_message_slot),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -593,6 +594,7 @@ def send_chat_message(
 def send_chat_message_stream(
     chat_in: ChatMessageIn,
     request: Request,
+    slot_user: User = Depends(require_chat_message_slot),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):

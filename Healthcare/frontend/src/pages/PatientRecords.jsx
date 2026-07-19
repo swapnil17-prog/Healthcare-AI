@@ -10,6 +10,7 @@ import {
   useCreateAppointmentMutation,
   useGetReportsQuery
 } from '../services/apiSlice';
+import { BASE_URL } from '../services/api';
 import './PatientDashboard.css';
 
 export default function PatientRecords() {
@@ -353,7 +354,7 @@ export default function PatientRecords() {
                         <span style={{ fontSize: '11px', color: 'hsl(var(--text-muted))' }}>Uploaded on {new Date(r.upload_date || r.uploaded_at).toLocaleDateString()}</span>
                       </div>
                       <a 
-                        href={`http://127.0.0.1:8000/api/reports/${r.public_id}/download`} 
+                        href={`${BASE_URL}/reports/${r.public_id}/download`} 
                         className="btn btn-secondary" 
                         style={{ padding: '6px 12px', fontSize: '11px', textDecoration: 'none' }}
                         download

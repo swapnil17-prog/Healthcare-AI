@@ -79,7 +79,7 @@ export default function ChatWidget() {
         body: JSON.stringify({ message: text }),
         credentials: 'include'
       });
-      
+
       if (!response.ok) {
         throw new Error('Streaming failed');
       }
@@ -92,7 +92,7 @@ export default function ChatWidget() {
         content: '',
         created_at: new Date().toISOString()
       };
-      
+
       setMessages((prev) => [...prev, assistantMsg]);
       setLoading(false); // Stop input loading now that streaming started
 
@@ -117,7 +117,7 @@ export default function ChatWidget() {
               if (data.text) {
                 assistantMsg.content += data.text;
                 // Update messages state in-place
-                setMessages((prev) => 
+                setMessages((prev) =>
                   prev.map((msg) => msg.id === assistantMsgId ? { ...assistantMsg } : msg)
                 );
               }
@@ -143,10 +143,10 @@ export default function ChatWidget() {
     <div className="chat-widget-container">
       {/* Floating Toggle Button (if closed) */}
       {!isOpen && (
-        <motion.button 
-          whileHover={{ scale: 1.05 }} 
+        <motion.button
+          whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
-          className="chat-trigger-btn" 
+          className="chat-trigger-btn"
           onClick={() => setIsOpen(true)}
         >
           <MessageSquare size={24} />
@@ -157,7 +157,7 @@ export default function ChatWidget() {
       {/* Chat Window Panel / Right Drawer */}
       <AnimatePresence>
         {isOpen && (
-          <motion.div 
+          <motion.div
             className="chat-window-panel"
             initial={{ opacity: 0, x: 100 }}
             animate={{ opacity: 1, x: 0 }}
@@ -207,8 +207,8 @@ export default function ChatWidget() {
                 </div>
               ) : (
                 messages.map((msg) => (
-                  <motion.div 
-                    key={msg.id} 
+                  <motion.div
+                    key={msg.id}
                     className={`chat-bubble-row ${msg.role}`}
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -225,14 +225,14 @@ export default function ChatWidget() {
                 ))
               )}
               {loading && (
-                <motion.div 
+                <motion.div
                   className="chat-bubble-row assistant"
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                 >
                   <div className="chat-bubble assistant typing" style={{ display: 'flex', gap: '4px', alignItems: 'center', minHeight: '36px' }}>
                     {[0, 1, 2].map((idx) => (
-                      <motion.span 
+                      <motion.span
                         key={idx}
                         className="dot"
                         style={{
@@ -267,11 +267,11 @@ export default function ChatWidget() {
                 onChange={(e) => setInputMsg(e.target.value)}
                 disabled={loading}
               />
-              <motion.button 
-                whileHover={{ scale: 1.03 }} 
+              <motion.button
+                whileHover={{ scale: 1.03 }}
                 whileTap={{ scale: 0.97 }}
-                type="submit" 
-                className="btn btn-primary chat-send-btn" 
+                type="submit"
+                className="btn btn-primary chat-send-btn"
                 disabled={!inputMsg.trim() || loading}
               >
                 <Send size={16} />

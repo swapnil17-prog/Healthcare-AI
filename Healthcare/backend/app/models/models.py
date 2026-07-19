@@ -15,6 +15,7 @@ class User(Base):
     suspended_at = Column(DateTime, nullable=True)
     login_attempts = Column(Integer, default=0, nullable=False)
     locked_until = Column(DateTime, nullable=True)
+    subscription_tier = Column(String, default="Free", nullable=False)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
 
     # Relationships
@@ -213,3 +214,68 @@ class HeartPrediction(Base):
     
     # Relationship
     patient = relationship("User", backref="heart_predictions")
+
+
+class SubscriptionPlan(Base):
+    __tablename__ = "subscription_plans"
+
+    id = Column(Integer, primary_key=True, index=True)
+    code = Column(String, unique=True, index=True, nullable=False)  # Free, Pro, Clinical, Doc_Free, Doc_Professional, Doc_Clinical_Plus
+    name = Column(String, nullable=False)
+    target_role = Column(String, nullable=False, default="patient")  # patient, doctor
+    price_inr = Column(Integer, nullable=False, default=0)
+    
+    # Patient limits
+    diabetes_predictions_limit = Column(Integer, nullable=False, default=3)  # -1 for unlimited
+    heart_predictions_allowed = Column(Boolean, nullable=False, default=False)
+    chat_messages_limit = Column(Integer, nullable=False, default=10)  # -1 for unlimited
+    pdf_downloads_allowed = Column(Boolean, nullable=False, default=False)
+    forecast_allowed = Column(Boolean, nullable=False, default=False)
+    report_summarization_allowed = Column(Boolean, nullable=False, default=False)
+    doctor_assignment_allowed = Column(Boolean, nullable=False, default=False)
+    history_retention_days = Column(Integer, nullable=False, default=30)  # -1 for unlimited
+    priority_support = Column(Boolean, nullable=False, default=False)
+
+    # Doctor limits
+    max_assigned_patients = Column(Integer, nullable=False, default=5)  # -1 for unlimited
+    doctor_ml_scans_limit = Column(Integer, nullable=False, default=10)  # -1 for unlimited
+    doctor_pdf_downloads_limit = Column(Integer, nullable=False, default=5)  # -1 for unlimited
+    cohort_clustering_allowed = Column(Boolean, nullable=False, default=False)
+    predictive_alerts_allowed = Column(Boolean, nullable=False, default=False)
+    custom_date_range_analytics = Column(Boolean, nullable=False, default=False)
+    upload_lab_reports_allowed = Column(Boolean, nullable=False, default=True)
+    api_access_allowed = Column(Boolean, nullable=False, default=False)
+
+
+class UserSubscription(Base):
+    __tablename__ = "user_subscriptions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    plan_code = Column(String, nullable=False, default="Free")
+    status = Column(String, nullable=False, default="active")  # active, cancelled, expired
+    start_date = Column(DateTime, default=datetime.datetime.utcnow, nullable=False)
+    end_date = Column(DateTime, nullable=True)
+    payment_method = Column(String, nullable=True)  # mock, razorpay
+    payment_id = Column(String, nullable=True)
+
+    user = relationship("User", backref="subscriptions")
+
+
+class UsageTracking(Base):
+    __tablename__ = "usage_tracking"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    year_month = Column(String, nullable=False, index=True)  # e.g., "2026-07"
+    diabetes_predictions_count = Column(Integer, nullable=False, default=0)
+    heart_predictions_count = Column(Integer, nullable=False, default=0)
+    chat_messages_count = Column(Integer, nullable=False, default=0)
+    pdf_downloads_count = Column(Integer, nullable=False, default=0)
+    assigned_patients_count = Column(Integer, nullable=False, default=0)
+    doctor_ml_scans_count = Column(Integer, nullable=False, default=0)
+    doctor_pdf_downloads_count = Column(Integer, nullable=False, default=0)
+    updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
+
+    user = relationship("User", backref="usage_logs")
+
